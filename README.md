@@ -1,11 +1,13 @@
 # ForceCheck
 
-Distributed **ping** from 200+ global nodes and **BGP** route lookup — straight from your terminal.
+> **See your network from the world's eyes — right in your terminal.**
 
-| Command | Source |
-|---------|--------|
-| `ping`  | [check-host.net](https://check-host.net) — up to 220 probe nodes worldwide |
-| `bgp`   | [lg.sdv.fr](http://lg.sdv.fr) — AS8839 looking glass |
+ForceCheck is a lightweight CLI tool for network engineers, sysadmins, and security researchers who want real-world network visibility without leaving the command line.
+
+- **`ping`** — sends probes from 200+ nodes across 50+ countries simultaneously via [check-host.net](https://check-host.net), so you see latency and reachability as the world sees it — not just from your machine.
+- **`bgp`** — queries the [lg.sdv.fr](http://lg.sdv.fr) looking glass (AS8839, France) to inspect live BGP routing paths, prefixes, and AS paths for any IP or subnet.
+
+No account. No API key. One install.
 
 ---
 
@@ -21,7 +23,9 @@ pip install git+https://github.com/YOUR_USERNAME/ForceCheck.git
 
 ## Usage
 
-### ping
+### `ping` — Distributed Ping
+
+Check reachability and latency from multiple locations worldwide.
 
 ```bash
 ping 8.8.8.8
@@ -43,17 +47,15 @@ PING 8.8.8.8  —  check-host.net
   9/10 nodes responded (90%)
 ```
 
-Options:
-
-```
-ping <host> [-n NODES]
-
-  -n, --nodes N    number of probe nodes, 1-220 (default: 10)
-```
+| Flag | Description |
+|------|-------------|
+| `-n`, `--nodes N` | Number of probe nodes, 1–220 (default: `10`) |
 
 ---
 
-### bgp
+### `bgp` — BGP Route Lookup
+
+Inspect BGP routing information for an IP, prefix, or AS number via the SdV looking glass.
 
 ```bash
 bgp 1.1.1.1
@@ -61,19 +63,21 @@ bgp 8.8.8.0/24
 bgp 185.220.101.0/24
 ```
 
-Queries the [lg.sdv.fr](http://lg.sdv.fr) looking glass (AS8839, France) and prints the BGP route output.
+---
+
+## Why ForceCheck?
+
+Most ping and BGP tools either require an account, hit rate limits, or only test from a single point. ForceCheck combines two reliable, open sources into a clean terminal interface — giving you a global perspective on any IP in seconds.
 
 ---
 
-## Note on `ping` command
+## Note on the `ping` command
 
-Installing this package adds a `ping` command via pip's script directory.  
-On Linux, if `~/.local/bin` comes before `/bin` in your `PATH`, this will shadow the system `ping`.
+This package installs a `ping` command. On Linux, if `~/.local/bin` is before `/bin` in your `$PATH`, it will shadow the system ping. To use the system ping explicitly:
 
-To keep both, you can call the system ping explicitly:
 ```bash
-/bin/ping 8.8.8.8        # system ping
-ping 8.8.8.8             # this tool (ForceCheck)
+/bin/ping 8.8.8.8    # system ping
+ping 8.8.8.8         # ForceCheck
 ```
 
 ---
