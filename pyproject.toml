@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "netcheck"
+version = "1.0.0"
+description = "Distributed ping via check-host.net and BGP lookup via lg.sdv.fr"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.28",
+    "beautifulsoup4>=4.11",
+]
+
+[project.scripts]
+ping = "netcheck.ping:main"
+bgp  = "netcheck.bgp:main"
+
+[project.urls]
+Homepage = "https://github.com/YOUR_USERNAME/netcheck"
