@@ -1,4 +1,4 @@
-# netcheck
+# ForceCheck
 
 Distributed **ping** from 200+ global nodes and **BGP** route lookup — straight from your terminal.
 
@@ -12,7 +12,7 @@ Distributed **ping** from 200+ global nodes and **BGP** route lookup — straigh
 ## Install
 
 ```bash
-pip install git+https://github.com/YOUR_USERNAME/netcheck.git
+pip install git+https://github.com/YOUR_USERNAME/ForceCheck.git
 ```
 
 > Requires Python 3.8+
@@ -73,7 +73,7 @@ On Linux, if `~/.local/bin` comes before `/bin` in your `PATH`, this will shadow
 To keep both, you can call the system ping explicitly:
 ```bash
 /bin/ping 8.8.8.8        # system ping
-ping 8.8.8.8             # this tool
+ping 8.8.8.8             # this tool (ForceCheck)
 ```
 
 ---

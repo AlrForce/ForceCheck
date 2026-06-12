@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.backends.legacy:build"
 
 [project]
-name = "netcheck"
+name = "forcecheck"
 version = "1.0.0"
 description = "Distributed ping via check-host.net and BGP lookup via lg.sdv.fr"
 readme = "README.md"
@@ -15,8 +15,8 @@ dependencies = [
 ]
 
 [project.scripts]
-ping = "netcheck.ping:main"
-bgp  = "netcheck.bgp:main"
+ping = "forcecheck.ping:main"
+bgp  = "forcecheck.bgp:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/netcheck"
+Homepage = "https://github.com/YOUR_USERNAME/ForceCheck"
