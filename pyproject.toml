@@ -9,14 +9,22 @@ description = "Distributed ping via check-host.net and BGP lookup via lg.sdv.fr"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.8"
-dependencies = [
+dependencies = []
+
+[project.optional-dependencies]
+deps = [
     "requests>=2.28",
     "beautifulsoup4>=4.11",
 ]
 
 [project.scripts]
-ping = "forcecheck.ping:main"
-bgp  = "forcecheck.bgp:main"
+"ping!"   = "forcecheck.ping:main"
+"bgp!"    = "forcecheck.bgp:main"
+"trace!"  = "forcecheck.trace:main"
+"http!"   = "forcecheck.http:main"
+"whois!"    = "forcecheck.whois:main"
+"checkall!" = "forcecheck.checkall:main"
+"fc!"       = "forcecheck.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/YOUR_USERNAME/ForceCheck"

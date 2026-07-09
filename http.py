@@ -1,8 +1,8 @@
 """
-ping — distributed ping via check-host.net
+http — distributed HTTP check via check-host.net
 
 Usage:
-  ping <host> [-n NODES]
+  http! <url> [-n NODES]
 """
 
 import sys
@@ -14,16 +14,23 @@ from ._deps import ensure_deps
 
 CHECK_HOST = "https://check-host.net"
 
+# رنگ‌بندی بر اساس HTTP status code
+def _status_color(code: int) -> str:
+    if 200 <= code < 300:
+        return G
+    if 300 <= code < 400:
+        return Y
+    return R
+
 
 def run(host: str, max_nodes: int = 10) -> None:
     import requests
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
 
-    # ── درخواست اولیه ────────────────────────────────────────────────────
     try:
         r = sess.get(
-            f"{CHECK_HOST}/check-ping",
+            f"{CHECK_HOST}/check-http",
             params={"host": host, "max_nodes": max_nodes},
             timeout=15,
         )
@@ -33,17 +40,16 @@ def run(host: str, max_nodes: int = 10) -> None:
     except requests.exceptions.ConnectionError:
         sys.exit(f"{R}Cannot connect to check-host.net{N}")
 
-    data = r.json()
+    data       = r.json()
     request_id = data.get("request_id", "")
-    nodes = data.get("nodes", {})
+    nodes      = data.get("nodes", {})
 
     if not nodes:
         sys.exit(f"{R}No nodes returned — check-host.net may have rejected the host.{N}")
 
-    print(f"\n{C}PING {host}  —  check-host.net{N}")
+    print(f"\n{C}HTTP {host}  —  check-host.net{N}")
     print(f"{DIM}{len(nodes)} probe nodes  |  {CHECK_HOST}/check-report/{request_id}{N}\n")
 
-    # ── poll نتایج ────────────────────────────────────────────────────────
     results: dict = {}
     for _ in range(15):
         time.sleep(2)
@@ -55,50 +61,57 @@ def run(host: str, max_nodes: int = 10) -> None:
             break
     print()
 
-    # ── جدول خروجی ───────────────────────────────────────────────────────
     col_node = 36
     col_loc  = 26
-    col_rtt  = 9
+    col_ip   = 17
+    col_time = 10
 
-    print(f"\n  {B}{'NODE':<{col_node}} {'LOCATION':<{col_loc}} {'RTT (ms)':>{col_rtt}}  STATUS{N}")
-    print("  " + "─" * (col_node + col_loc + col_rtt + 12))
+    print(f"\n  {B}{'NODE':<{col_node}} {'LOCATION':<{col_loc}} {'RESOLVED IP':<{col_ip}} {'TIME (ms)':>{col_time}}  STATUS{N}")
+    print("  " + "─" * (col_node + col_loc + col_ip + col_time + 12))
 
     ok_count = 0
     for node, info in nodes.items():
-        country = info[1] if len(info) > 1 else "?"
-        city    = info[2] if len(info) > 2 else "?"
+        country  = info[1] if len(info) > 1 else "?"
+        city     = info[2] if len(info) > 2 else "?"
         location = f"{city}, {country}"
 
-        pings = results.get(node)
-        if not pings:
-            rtt_str, status = "—", f"{Y}pending{N}"
-        else:
-            attempts = pings[0] if pings else []
-            ok_pings = [p for p in attempts if p and p[0] == "OK"]
-            if ok_pings:
-                avg_ms  = sum(p[1] * 1000 for p in ok_pings) / len(ok_pings)
-                rtt_str = f"{avg_ms:.1f}"
-                status  = f"{G}OK{N}"
-                ok_count += 1
-            else:
-                rtt_str, status = "—", f"{R}timeout{N}"
+        res = results.get(node)
+        if not res:
+            print(f"  {node:<{col_node}} {location:<{col_loc}} {'—':<{col_ip}} {'—':>{col_time}}  {Y}pending{N}")
+            continue
 
-        print(f"  {node:<{col_node}} {location:<{col_loc}} {rtt_str:>{col_rtt}}  {status}")
+        entry = res[0] if res else None
+
+        # فرمت پاسخ: [status_str, status_code, time_sec, resolved_ip]
+        if not entry or entry[0] != "OK":
+            err = entry[0] if entry else "error"
+            print(f"  {node:<{col_node}} {location:<{col_loc}} {'—':<{col_ip}} {'—':>{col_time}}  {R}{err}{N}")
+            continue
+
+        code     = entry[1] if len(entry) > 1 else 0
+        time_sec = entry[2] if len(entry) > 2 else None
+        ip       = entry[3] if len(entry) > 3 and entry[3] else "—"
+
+        time_str = f"{time_sec * 1000:.0f}" if time_sec is not None else "—"
+        sc       = _status_color(code)
+
+        print(f"  {node:<{col_node}} {location:<{col_loc}} {ip:<{col_ip}} {time_str:>{col_time}}  {sc}{code}{N}")
+        ok_count += 1
 
     total = len(nodes)
     pct   = ok_count * 100 // total if total else 0
     color = G if pct >= 80 else (Y if pct >= 40 else R)
-    print(f"\n  {color}{ok_count}/{total} nodes responded ({pct}%){N}\n")
+    print(f"\n  {color}{ok_count}/{total} nodes reached ({pct}%){N}\n")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        prog="ping!",
-        description="Distributed ping from multiple global nodes via check-host.net",
+        prog="http!",
+        description="Distributed HTTP check from multiple global nodes via check-host.net",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Examples:\n  ping 8.8.8.8\n  ping google.com -n 20",
+        epilog="Examples:\n  http! https://example.com\n  http! http://1.1.1.1 -n 20",
     )
-    ap.add_argument("host", help="IP address or hostname")
+    ap.add_argument("host", help="URL to check (http:// or https://)")
     ap.add_argument(
         "-n", "--nodes",
         type=int, default=10, metavar="N",

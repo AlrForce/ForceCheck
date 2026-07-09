@@ -10,10 +10,8 @@ import sys
 import argparse
 import warnings
 
-import requests
-from bs4 import BeautifulSoup
-
 from .colors import G, R, Y, C, B, DIM, N
+from ._deps import ensure_deps
 
 SDV_LG = "http://lg.sdv.fr"
 
@@ -23,6 +21,8 @@ _ADDR_FIELDS  = {"addr", "host", "target", "arg", "prefix", "network", "ip", "q"
 
 
 def run(target: str) -> None:
+    import requests
+    from bs4 import BeautifulSoup
     sess = requests.Session()
     sess.headers["User-Agent"] = "Mozilla/5.0 (X11; Linux x86_64) netcheck/1.0"
 
@@ -101,6 +101,7 @@ def _fallback(sess: requests.Session, target: str) -> None:
 
 
 def _render(html: str, target: str) -> None:
+    from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
 
     for tag in soup(["script", "style", "nav", "header", "footer", "noscript"]):
@@ -138,7 +139,7 @@ def _render(html: str, target: str) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        prog="bgp",
+        prog="bgp!",
         description="BGP route lookup via lg.sdv.fr looking glass (AS8839)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Examples:\n  bgp 1.1.1.1\n  bgp 8.8.8.0/24\n  bgp 185.220.101.0/24",
@@ -146,6 +147,7 @@ def main() -> None:
     ap.add_argument("host", help="IP address, prefix (x.x.x.x/yy), or ASN")
 
     args = ap.parse_args()
+    ensure_deps()
 
     try:
         run(args.host)
