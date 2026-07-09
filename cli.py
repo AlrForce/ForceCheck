@@ -12,7 +12,7 @@ from .colors import G, R, Y, C, B, DIM, N
 from ._deps import ensure_deps
 from . import __version__
 
-REPO_URL = "https://github.com/AlrForce/ForceCheck.git"
+REPO_URL = "https://github.com/AlrForce/ForceCheck"
 
 _W = 54  # عرض داخلی بنر
 
@@ -122,7 +122,8 @@ def _run_update() -> None:
     try:
         subprocess.check_call([
             sys.executable, "-m", "pip", "install", "--upgrade",
-            f"git+{REPO_URL}",
+            f"{REPO_URL}/archive/refs/heads/main.tar.gz",
+            "--break-system-packages",
         ])
         print(f"\n  {G}update complete — please restart fc! to use the new version.{N}")
     except subprocess.CalledProcessError:

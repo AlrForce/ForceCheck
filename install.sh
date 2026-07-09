@@ -42,7 +42,7 @@ echo "  Downloading ForceCheck ..."
 TMP=$(mktemp -d)
 trap "rm -rf $TMP" EXIT
 
-curl -sSL "$REPO/archive/refs/heads/master.tar.gz" | tar xz -C "$TMP"
+curl -sSL "$REPO/archive/refs/heads/main.tar.gz" | tar xz -C "$TMP"
 
 # پیدا کردن پوشه‌ای که tar ساخته (بدون فرض اسم ثابت)
 SRC=$(find "$TMP" -maxdepth 1 -mindepth 1 -type d | head -1)
