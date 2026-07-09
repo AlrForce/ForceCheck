@@ -1,148 +1,129 @@
 """
-bgp — BGP route lookup via lg.sdv.fr (AS8839)
+bgp — BGP route lookup via bgpview.io API
 
 Usage:
-  bgp <ip | prefix | asn>
+  bgp! <ip | prefix | asn>
 """
 
 import re
 import sys
 import argparse
-import warnings
 
 from .colors import G, R, Y, C, B, DIM, N
 from ._deps import ensure_deps
 
-SDV_LG = "http://lg.sdv.fr"
+BGPVIEW = "https://api.bgpview.io"
+_ASN_RE = re.compile(r"^(?:AS)?(\d+)$", re.I)
 
-# فیلدهای رایج در looking glass‌های مختلف
-_QUERY_FIELDS = {"query", "type", "cmd", "command", "action", "qtype", "querytype"}
-_ADDR_FIELDS  = {"addr", "host", "target", "arg", "prefix", "network", "ip", "q"}
+
+def _row(label: str, value: str) -> None:
+    print(f"  {DIM}{label:<16}{N}{value}")
 
 
 def run(target: str) -> None:
     import requests
-    from bs4 import BeautifulSoup
-    sess = requests.Session()
-    sess.headers["User-Agent"] = "Mozilla/5.0 (X11; Linux x86_64) netcheck/1.0"
 
-    print(f"\n{C}BGP  {target}  —  lg.sdv.fr (AS8839){N}\n")
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")  # expired SSL cert on sdv.fr
-
-        try:
-            home = sess.get(SDV_LG + "/", verify=False, timeout=15)
-        except requests.exceptions.ConnectionError:
-            sys.exit(f"{R}Cannot connect to lg.sdv.fr{N}")
-
-        soup = BeautifulSoup(home.text, "html.parser")
-        form = soup.find("form")
-
-        if not form:
-            _fallback(sess, target)
-            return
-
-        action = form.get("action", "/")
-        method = form.get("method", "get").lower()
-        url    = (SDV_LG + action) if action.startswith("/") else (action or SDV_LG + "/")
-
-        # جمع‌آوری فیلدهای موجود در فرم
-        payload: dict = {}
-        for tag in form.find_all(["input", "select", "textarea"]):
-            name = tag.get("name")
-            if not name:
-                continue
-            if tag.name == "select":
-                first = tag.find("option")
-                payload[name] = first.get("value", "") if first else ""
-            else:
-                payload[name] = tag.get("value", "")
-
-        # جایگذاری مقادیر صحیح بر اساس نام فیلد
-        for k in list(payload):
-            lk = k.lower()
-            if lk in _QUERY_FIELDS:
-                payload[k] = "bgp"
-            elif lk in _ADDR_FIELDS:
-                payload[k] = target
-
-        # اگر فیلد آدرس در فرم نبود، اضافه‌اش کن
-        if not any(k.lower() in _ADDR_FIELDS for k in payload):
-            payload["addr"] = target
-
-        if method == "post":
-            resp = sess.post(url, data=payload, verify=False, timeout=20)
-        else:
-            resp = sess.get(url, params=payload, verify=False, timeout=20)
-
-    _render(resp.text, target)
-
-
-def _fallback(sess, target: str) -> None:
-    """اگر فرم parse نشد، URL‌های رایج looking glass را امتحان می‌کند."""
-    candidates = [
-        f"{SDV_LG}/?query=bgp&addr={target}",
-        f"{SDV_LG}/?query=route&addr={target}",
-        f"{SDV_LG}/cgi-bin/lg.cgi?query=bgp&addr={target}",
-        f"{SDV_LG}/lg?query=bgp&addr={target}",
-    ]
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        for url in candidates:
-            try:
-                r = sess.get(url, verify=False, timeout=15)
-                if r.status_code == 200 and len(r.text) > 300:
-                    _render(r.text, target)
-                    return
-            except Exception:
-                continue
-    sys.exit(f"{R}No response from lg.sdv.fr{N}")
-
-
-def _render(html: str, target: str) -> None:
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(html, "html.parser")
-
-    for tag in soup(["script", "style", "nav", "header", "footer", "noscript"]):
-        tag.decompose()
-
-    block = (
-        soup.find("pre")
-        or soup.find("code")
-        or soup.find(id=re.compile(r"result|output|content|bgp", re.I))
-        or soup.find(class_=re.compile(r"result|output|bgp|pre", re.I))
-    )
-
-    text = block.get_text() if block else soup.get_text("\n")
-
-    # پاکسازی خطوط خالی متوالی
-    lines, prev_blank = [], False
-    for line in text.splitlines():
-        s = line.rstrip()
-        blank = not s.strip()
-        if blank and prev_blank:
-            continue
-        lines.append(s)
-        prev_blank = blank
-
-    base_ip = target.split("/")[0]
-    has_data = any(base_ip.split(".")[0] in l for l in lines if l)
-
-    if not has_data:
-        print(f"{Y}No BGP data found for {target} in the response.{N}")
-        print(f"{DIM}Visit {SDV_LG} directly for manual lookup.{N}\n")
+    m = _ASN_RE.match(target)
+    if m:
+        _run_asn(requests, int(m.group(1)))
     else:
-        print("\n".join(lines[:120]))
-        print()
+        _run_ip(requests, target)
+
+
+def _run_ip(requests, target: str) -> None:
+    ip = target.split("/")[0]
+
+    print(f"\n{C}BGP  {target}  —  bgpview.io{N}\n")
+
+    try:
+        r = requests.get(f"{BGPVIEW}/ip/{ip}", timeout=15,
+                         headers={"Accept": "application/json"})
+        r.raise_for_status()
+    except requests.exceptions.ConnectionError:
+        sys.exit(f"{R}Cannot connect to bgpview.io{N}")
+    except requests.exceptions.HTTPError as e:
+        sys.exit(f"{R}API error:{N} {e}")
+
+    d = r.json().get("data", {})
+    if not d:
+        sys.exit(f"{R}No data returned for {target}{N}")
+
+    ptr = d.get("ptr_record") or "—"
+    _row("PTR", ptr)
+
+    prefixes = d.get("prefixes", [])
+    if not prefixes:
+        print(f"  {Y}No BGP prefix found for {target}.{N}\n")
+        return
+
+    for pfx in prefixes:
+        prefix  = pfx.get("prefix", "—")
+        asn_obj = pfx.get("asn", {})
+        asn     = asn_obj.get("asn", "—")
+        name    = asn_obj.get("name", "—")
+        desc    = asn_obj.get("description", "—")
+        country = asn_obj.get("country_code", "—")
+
+        print(f"  {B}{'─' * 50}{N}")
+        _row("Prefix",  f"{G}{prefix}{N}")
+        _row("ASN",     f"{B}AS{asn}{N}  {DIM}({name}){N}")
+        _row("Network", desc)
+        _row("Country", country)
+
+    rir = d.get("rir_allocation", {})
+    if rir:
+        print(f"\n  {DIM}RIR Allocation{N}")
+        _row("  RIR",       rir.get("rir_name", "—"))
+        _row("  Prefix",    rir.get("prefix", "—"))
+        _row("  Allocated", (rir.get("date_allocated") or "—")[:10])
+
+    print()
+
+
+def _run_asn(requests, asn: int) -> None:
+    print(f"\n{C}BGP  AS{asn}  —  bgpview.io{N}\n")
+
+    try:
+        r = requests.get(f"{BGPVIEW}/asn/{asn}", timeout=15,
+                         headers={"Accept": "application/json"})
+        r.raise_for_status()
+    except requests.exceptions.ConnectionError:
+        sys.exit(f"{R}Cannot connect to bgpview.io{N}")
+    except requests.exceptions.HTTPError as e:
+        sys.exit(f"{R}API error:{N} {e}")
+
+    d = r.json().get("data", {})
+    if not d:
+        sys.exit(f"{R}No data returned for AS{asn}{N}")
+
+    _row("ASN",          f"AS{d.get('asn', asn)}")
+    _row("Name",         d.get("name", "—"))
+    _row("Description",  d.get("description", "—"))
+    _row("Country",      d.get("country_code", "—"))
+    _row("Website",      d.get("website") or "—")
+    _row("Looking Glass",d.get("looking_glass") or "—")
+    _row("Traffic Lvl",  d.get("traffic_estimation") or "—")
+
+    # تعداد prefix‌ها
+    try:
+        rp = requests.get(f"{BGPVIEW}/asn/{asn}/prefixes", timeout=15,
+                          headers={"Accept": "application/json"})
+        pfx_data = rp.json().get("data", {})
+        v4 = len(pfx_data.get("ipv4_prefixes", []))
+        v6 = len(pfx_data.get("ipv6_prefixes", []))
+        _row("Prefixes",  f"IPv4: {v4}  ·  IPv6: {v6}")
+    except Exception:
+        pass
+
+    print()
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(
         prog="bgp!",
-        description="BGP route lookup via lg.sdv.fr looking glass (AS8839)",
+        description="BGP route lookup via bgpview.io",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Examples:\n  bgp 1.1.1.1\n  bgp 8.8.8.0/24\n  bgp 185.220.101.0/24",
+        epilog="Examples:\n  bgp! 1.1.1.1\n  bgp! 8.8.8.0/24\n  bgp! AS15169\n  bgp! 185.220.101.0/24",
     )
     ap.add_argument("host", help="IP address, prefix (x.x.x.x/yy), or ASN")
 
