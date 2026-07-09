@@ -1,6 +1,6 @@
 #!/bin/bash
 
-REPO="https://github.com/AlrForce/ForceCheck"
+GITHUB_RAW="https://raw.githubusercontent.com/AlrForce/ForceCheck/main"
 
 echo ""
 echo "  ForceCheck — installer"
@@ -30,56 +30,47 @@ if ! "$PY" -c "import pip" &>/dev/null 2>&1; then
     else
         curl -sSL https://bootstrap.pypa.io/get-pip.py | "$PY"
     fi
-    if ! "$PY" -c "import pip" &>/dev/null 2>&1; then
-        echo "  [error] Could not install pip. Try: apt-get install python3-pip"
-        exit 1
+fi
+
+# ── پیدا کردن مسیر نصب پکیج‌ها ──────────────────────────────────────────
+SITE=$("$PY" -c "
+try:
+    import site; print(site.getsitepackages()[0])
+except Exception:
+    import sysconfig; print(sysconfig.get_path('purelib'))
+")
+PKG_DIR="$SITE/forcecheck"
+echo "  Installing to: $PKG_DIR"
+mkdir -p "$PKG_DIR"
+
+# ── دانلود مستقیم هر فایل از GitHub ─────────────────────────────────────
+PYFILES="__init__.py bgp.py checkall.py cli.py colors.py _deps.py http.py ping.py trace.py whois.py"
+
+echo "  Downloading files ..."
+for f in $PYFILES; do
+    # اول ForceCheck/ بعد forcecheck/
+    if curl -sSfL "$GITHUB_RAW/ForceCheck/$f" -o "$PKG_DIR/$f" 2>/dev/null; then
+        :
+    elif curl -sSfL "$GITHUB_RAW/forcecheck/$f" -o "$PKG_DIR/$f" 2>/dev/null; then
+        :
+    else
+        echo "  [warning] could not download $f"
     fi
-    echo "  pip installed."
-fi
+done
 
-# ── دانلود repo ───────────────────────────────────────────────────────────
-echo "  Downloading ForceCheck ..."
-TMP=$(mktemp -d)
-trap "rm -rf $TMP" EXIT
-
-curl -sSL "$REPO/archive/refs/heads/main.tar.gz" | tar xz -C "$TMP"
-
-# پیدا کردن پوشه‌ای که tar ساخته (بدون فرض اسم ثابت)
-SRC=$(find "$TMP" -maxdepth 1 -mindepth 1 -type d | head -1)
-
-if [ -z "$SRC" ]; then
-    echo "  [error] Download or extraction failed."
-    exit 1
-fi
-
-echo "  Extracted to: $SRC"
-
-# ── ادغام ForceCheck/ و forcecheck/ ──────────────────────────────────────
-[ -d "$SRC/forcecheck" ] || mkdir -p "$SRC/forcecheck"
-
-if [ -d "$SRC/ForceCheck" ]; then
-    cp -rn "$SRC/ForceCheck/." "$SRC/forcecheck/"
-fi
-
-# اطمینان از وجود __init__.py
-[ -f "$SRC/forcecheck/__init__.py" ] || echo '__version__ = "1.0.0"' > "$SRC/forcecheck/__init__.py"
-
-# ── نصب پکیج ─────────────────────────────────────────────────────────────
-echo "  Installing package ..."
-if ! "$PY" -m pip install "$SRC" -q 2>/dev/null; then
-    "$PY" -m pip install "$SRC" --break-system-packages -q
-fi
+# ── نصب وابستگی‌ها ───────────────────────────────────────────────────────
+echo "  Installing dependencies ..."
+"$PY" -m pip install requests beautifulsoup4 -q 2>/dev/null || \
+"$PY" -m pip install requests beautifulsoup4 -q --break-system-packages
 
 # ── ساخت دستورهای ! ──────────────────────────────────────────────────────
 SCRIPTS=$("$PY" -c "import sysconfig; print(sysconfig.get_path('scripts'))")
 echo "  Creating commands in $SCRIPTS ..."
 
 create_cmd() {
-    local name="$1"
-    local module="$2"
-    printf '#!/usr/bin/env python3\nfrom forcecheck.%s import main\nmain()\n' "$module" \
-        > "$SCRIPTS/$name"
-    chmod +x "$SCRIPTS/$name"
+    printf '#!/usr/bin/env python3\nfrom forcecheck.%s import main\nmain()\n' "$2" \
+        > "$SCRIPTS/$1"
+    chmod +x "$SCRIPTS/$1"
 }
 
 create_cmd "ping!"     "ping"
