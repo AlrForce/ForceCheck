@@ -43,11 +43,19 @@ TMP=$(mktemp -d)
 trap "rm -rf $TMP" EXIT
 
 curl -sSL "$REPO/archive/refs/heads/master.tar.gz" | tar xz -C "$TMP"
-SRC="$TMP/ForceCheck-master"
+
+# پیدا کردن پوشه‌ای که tar ساخته (بدون فرض اسم ثابت)
+SRC=$(find "$TMP" -maxdepth 1 -mindepth 1 -type d | head -1)
+
+if [ -z "$SRC" ]; then
+    echo "  [error] Download or extraction failed."
+    exit 1
+fi
+
+echo "  Extracted to: $SRC"
 
 # ── ادغام ForceCheck/ و forcecheck/ ──────────────────────────────────────
-# روی لینوکس این دو پوشه جدا هستند؛ هر دو را در forcecheck/ ادغام می‌کنیم
-[ -d "$SRC/forcecheck" ] || mkdir "$SRC/forcecheck"
+[ -d "$SRC/forcecheck" ] || mkdir -p "$SRC/forcecheck"
 
 if [ -d "$SRC/ForceCheck" ]; then
     cp -rn "$SRC/ForceCheck/." "$SRC/forcecheck/"
