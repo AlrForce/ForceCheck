@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 REPO="https://github.com/AlrForce/ForceCheck.git"
 
@@ -18,18 +17,18 @@ PY=$(command -v python3 || command -v python)
 PY_VER=$("$PY" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 echo "  Python $PY_VER found at $PY"
 
-# چک pip با import مستقیم (روش مطمئن‌تر)
+# چک pip
 if ! "$PY" -c "import pip" &>/dev/null 2>&1; then
     echo "  pip not found — installing ..."
 
     if command -v apt-get &>/dev/null; then
-        apt-get install -y python3-pip 2>&1 | grep -v "^$" | tail -3
+        DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip </dev/null -qq
     elif command -v dnf &>/dev/null; then
-        dnf install -y python3-pip -q
+        dnf install -y python3-pip -q </dev/null
     elif command -v yum &>/dev/null; then
-        yum install -y python3-pip -q
+        yum install -y python3-pip -q </dev/null
     elif command -v apk &>/dev/null; then
-        apk add --quiet py3-pip
+        apk add --quiet py3-pip </dev/null
     else
         echo "  trying get-pip.py ..."
         curl -sSL https://bootstrap.pypa.io/get-pip.py | "$PY"
@@ -45,10 +44,9 @@ if ! "$PY" -c "import pip" &>/dev/null 2>&1; then
 fi
 
 # نصب ForceCheck
-# Python 3.12+ روی Debian/Ubuntu نیاز به --break-system-packages دارد
 echo "  Installing ForceCheck from GitHub ..."
-if ! "$PY" -m pip install --upgrade "git+$REPO" --quiet 2>/dev/null; then
-    "$PY" -m pip install --upgrade "git+$REPO" --break-system-packages --quiet
+if ! "$PY" -m pip install --upgrade "git+$REPO" -q 2>/dev/null; then
+    "$PY" -m pip install --upgrade "git+$REPO" --break-system-packages -q
 fi
 
 echo ""
