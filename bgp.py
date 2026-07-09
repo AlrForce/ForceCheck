@@ -79,7 +79,7 @@ def run(target: str) -> None:
     _render(resp.text, target)
 
 
-def _fallback(sess: requests.Session, target: str) -> None:
+def _fallback(sess, target: str) -> None:
     """اگر فرم parse نشد، URL‌های رایج looking glass را امتحان می‌کند."""
     candidates = [
         f"{SDV_LG}/?query=bgp&addr={target}",
