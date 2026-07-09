@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GITHUB_RAW="https://raw.githubusercontent.com/AlrForce/ForceCheck/main"
+GITHUB_RAW="https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
 
 echo ""
 echo "  ForceCheck — installer"
@@ -48,10 +48,7 @@ PYFILES="__init__.py bgp.py checkall.py cli.py colors.py _deps.py http.py ping.p
 
 echo "  Downloading files ..."
 for f in $PYFILES; do
-    # اول ForceCheck/ بعد forcecheck/
-    if curl -sSfL "$GITHUB_RAW/ForceCheck/$f" -o "$PKG_DIR/$f" 2>/dev/null; then
-        :
-    elif curl -sSfL "$GITHUB_RAW/forcecheck/$f" -o "$PKG_DIR/$f" 2>/dev/null; then
+    if curl -sSfL "$GITHUB_RAW/$f" -o "$PKG_DIR/$f" 2>/dev/null; then
         :
     else
         echo "  [warning] could not download $f"
