@@ -15,7 +15,7 @@ from ._deps import ensure_deps
 CHECK_HOST = "https://check-host.net"
 
 
-def run(host: str, max_nodes: int = 10) -> None:
+def run(host: str, max_nodes: int = 220) -> None:
     import requests
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
@@ -73,7 +73,7 @@ def run(host: str, max_nodes: int = 10) -> None:
         if not pings:
             rtt_str, status = "—", f"{Y}pending{N}"
         else:
-            attempts = pings[0] if pings else []
+            attempts = pings[0] or []
             ok_pings = [p for p in attempts if p and p[0] == "OK"]
             if ok_pings:
                 avg_ms  = sum(p[1] * 1000 for p in ok_pings) / len(ok_pings)

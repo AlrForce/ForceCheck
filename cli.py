@@ -24,7 +24,7 @@ BANNER = (
 )
 
 _ITEMS = [
-    ("ping!",     "distributed ping",                "Host or IP",          "nodes"),
+    ("ping!",     "distributed ping",                "Host or IP",          None),
     ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",  None),
     ("trace!",    "distributed traceroute",          "Host or IP",          "nodes"),
     ("http!",     "HTTP check from global nodes",    "URL or host",         "nodes"),
@@ -195,7 +195,7 @@ def _run(choice: int) -> None:
     try:
         if choice == 1:
             from .ping import run
-            run(target, nodes)
+            run(target, 220)
         elif choice == 2:
             from .bgp import run
             run(target)
