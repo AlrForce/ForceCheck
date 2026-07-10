@@ -71,24 +71,37 @@ def run(host: str, max_nodes: int = 5) -> None:
             print(f"    {Y}no hops{N}\n")
             continue
 
-        for hop in hops:
+        for ttl, hop in enumerate(hops, 1):
+            # هر hop یک لیست از probe هاست: [{"host":..,"name":..,"rtt":..}, ...]
+            # یا None در صورت timeout
             if not hop:
+                print(f"    {DIM}{ttl:>2}{N}  {'*':<55}  {R}*{N}")
                 continue
 
-            ttl      = hop[0] if len(hop) > 0 else "?"
-            ip       = hop[1] if len(hop) > 1 and hop[1] else "*"
-            hostname = hop[2] if len(hop) > 2 and hop[2] else ""
-            rtt_raw  = hop[3] if len(hop) > 3 else None
-
-            if rtt_raw is not None:
-                rtt_str = f"{G}{rtt_raw * 1000:.1f} ms{N}"
+            # اگر hop یه لیست از dict باشه (فرمت جدید check-host.net)
+            if isinstance(hop, list):
+                probe = hop[0] if hop else None
+            elif isinstance(hop, dict):
+                probe = hop
             else:
-                rtt_str = f"{R}*{N}"
+                continue
 
-            if hostname and hostname != ip:
-                addr = f"{ip}  {DIM}({hostname}){N}"
+            if not probe:
+                print(f"    {DIM}{ttl:>2}{N}  {'*':<55}  {R}*{N}")
+                continue
+
+            if isinstance(probe, dict):
+                ip      = probe.get("host") or "*"
+                hostname= probe.get("name") or ""
+                rtt_raw = probe.get("rtt")
             else:
-                addr = ip
+                # فرمت قدیمی: [ttl, ip, hostname, rtt]
+                ip      = probe[1] if len(probe) > 1 and probe[1] else "*"
+                hostname= probe[2] if len(probe) > 2 and probe[2] else ""
+                rtt_raw = probe[3] if len(probe) > 3 else None
+
+            rtt_str = f"{G}{rtt_raw * 1000:.1f} ms{N}" if rtt_raw is not None else f"{R}*{N}"
+            addr    = f"{ip}  {DIM}({hostname}){N}" if hostname and hostname != ip else ip
 
             print(f"    {DIM}{ttl:>2}{N}  {addr:<55}  {rtt_str}")
 
