@@ -49,7 +49,10 @@ def _row(node: str, info: list, res) -> bool:
 
     status_text = entry[1] if len(entry) > 1 else "—"
     time_sec    = entry[2] if len(entry) > 2 else None
-    time_str    = f"{time_sec * 1000:.0f}" if time_sec is not None else "—"
+    try:
+        time_str = f"{float(time_sec) * 1000:.0f}"
+    except (TypeError, ValueError):
+        time_str = "—"
 
     try:
         code = int(status_text.split()[0])
