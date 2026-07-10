@@ -134,7 +134,29 @@ def _run_update() -> None:
     import os, sysconfig, urllib.request
 
     print(f"\n  {B}update{N}")
-    print(f"  {DIM}current version: {__version__}{N}")
+    print(f"  {DIM}current version : {__version__}{N}")
+
+    # دریافت آخرین ورژن از GitHub
+    raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
+    latest = "unknown"
+    try:
+        import re as _re
+        resp = urllib.request.urlopen(f"{raw_base}/__init__.py", timeout=6)
+        text = resp.read().decode()
+        m = _re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', text)
+        if m:
+            latest = m.group(1)
+    except Exception:
+        pass
+
+    if latest == __version__:
+        ver_line = f"{G}{latest}  (up to date){N}"
+    elif latest == "unknown":
+        ver_line = f"{Y}could not fetch{N}"
+    else:
+        ver_line = f"{G}{latest}  (new!){N}"
+
+    print(f"  {DIM}latest version  :{N} {ver_line}")
     print(f"  {DIM}source: {REPO_URL}{N}\n")
 
     try:
