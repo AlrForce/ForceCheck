@@ -92,15 +92,42 @@ def _run_uninstall() -> None:
         print(f"\n  {Y}cancelled{N}")
         return
 
+    import shutil, sysconfig
+
     print()
+    errors = []
+
+    # حذف پوشه پکیج
     try:
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "uninstall", "forcecheck", "-y",
-        ])
-        print(f"\n  {G}ForceCheck uninstalled successfully. Goodbye!{N}\n")
-        sys.exit(0)
-    except subprocess.CalledProcessError:
-        print(f"\n  {R}Uninstall failed — try manually: pip uninstall forcecheck{N}")
+        site = __import__("site").getsitepackages()[0]
+    except Exception:
+        site = sysconfig.get_path("purelib")
+
+    pkg_dir = f"{site}/forcecheck"
+    if __import__("os").path.isdir(pkg_dir):
+        try:
+            shutil.rmtree(pkg_dir)
+        except Exception as e:
+            errors.append(f"package dir: {e}")
+
+    # حذف دستورهای !
+    scripts = sysconfig.get_path("scripts")
+    for cmd in ("ping!", "bgp!", "trace!", "http!", "whois!", "checkall!", "fc!"):
+        path = f"{scripts}/{cmd}"
+        if __import__("os").path.exists(path):
+            try:
+                __import__("os").remove(path)
+            except Exception as e:
+                errors.append(f"{cmd}: {e}")
+
+    if errors:
+        print(f"  {Y}Uninstall completed with warnings:{N}")
+        for e in errors:
+            print(f"    {DIM}{e}{N}")
+    else:
+        print(f"  {G}ForceCheck uninstalled successfully. Goodbye!{N}\n")
+
+    sys.exit(0)
 
 
 def _run_update() -> None:
