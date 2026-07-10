@@ -79,27 +79,23 @@ def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
     path.reverse()
 
     # ─── نمایش ───────────────────────────────────────────────────────
-    col = 10
-
-    # رنگ‌بندی پیش‌رونده: از روشن (upstream) به سبز (origin)
-    _HOP_COLORS = [C, B, Y, G]
-
-    def _hop_color(idx: int, total: int) -> str:
-        if idx == total - 1:
-            return G   # origin همیشه سبز
-        bucket = (idx * (len(_HOP_COLORS) - 1)) // max(total - 1, 1)
-        return _HOP_COLORS[min(bucket, len(_HOP_COLORS) - 2)]
-
     total = len(path)
+
+    def _hop_style(idx: int) -> tuple:
+        """(box_color, tag_str)"""
+        if idx == total - 1:
+            return G, f"  {G}◀ origin{N}"
+        elif idx == 0:
+            return C, f"  {C}▲ upstream{N}"
+        else:
+            return Y, f"  {Y}◆ transit{N}"
 
     print(f"\n  {C}── BGP MAP ──────────────────────────────────────────{N}")
     print(f"  {DIM}  {total} hops  ·  upstream → origin{N}\n")
 
     for i, (asn, name) in enumerate(path):
-        is_origin = (asn == origin_asn)
-        color     = _hop_color(i, total)
-        tag       = f"  {G}◀ origin{N}" if is_origin else ""
-        label     = f"AS{asn}"
+        color, tag = _hop_style(i)
+        label      = f"AS{asn}"
 
         # عرض کادر بر اساس طول واقعی محتوا
         inner_w = max(len(label) + 6, len(name) + 4)
