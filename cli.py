@@ -155,7 +155,7 @@ def _run_update() -> None:
         site = sysconfig.get_path("purelib")
 
     pkg_dir  = os.path.join(site, "forcecheck")
-    raw_base = f"{REPO_URL}/raw/refs/heads/master"
+    raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
     pyfiles  = [
         "__init__.py", "bgp.py", "checkall.py", "cli.py",
         "colors.py", "_deps.py", "http.py", "ping.py",
