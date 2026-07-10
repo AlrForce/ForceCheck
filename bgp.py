@@ -21,51 +21,56 @@ def _row(label: str, value: str) -> None:
     print(f"  {DIM}{label:<16}{N}{value}")
 
 
-def _api(sess, endpoint: str, resource: str) -> dict:
+def _api(sess, endpoint: str, resource: str, silent: bool = False) -> dict:
     import requests as req
+    from urllib.parse import quote
     try:
-        r = sess.get(
-            f"{RIPESTAT}/{endpoint}/data.json",
-            params={"resource": resource},
-            timeout=15,
-        )
+        # ساخت مستقیم URL تا slash در prefix ها encode نشه
+        url = f"{RIPESTAT}/{endpoint}/data.json?resource={quote(resource, safe='/.:')}"
+        r = sess.get(url, timeout=15)
         r.raise_for_status()
         return r.json().get("data", {})
     except req.exceptions.ConnectionError:
+        if silent:
+            return {}
         sys.exit(f"{R}Cannot connect to stat.ripe.net{N}")
-    except req.exceptions.HTTPError as e:
-        sys.exit(f"{R}API error:{N} {e}")
+    except req.exceptions.HTTPError:
+        if silent:
+            return {}
+        sys.exit(f"{R}API error: endpoint not available{N}")
     except Exception:
         return {}
 
 
 def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
     """نمایش AS path به صورت ASCII map"""
-    d = _api(sess, "bgp-routes", prefix)
-    routes = d.get("routes", [])
-    if not routes:
+    # looking-glass: AS path از چندین RRC collector
+    d = _api(sess, "looking-glass", prefix, silent=True)
+    rrcs = d.get("rrcs", [])
+    if not rrcs:
         return
 
-    # جمع‌آوری مسیرهای منحصربه‌فرد
+    # جمع‌آوری مسیرهای منحصربه‌فرد از همه rrcs
     seen_paths: set = set()
     paths = []
-    for route in routes:
-        path_raw = route.get("as_path", "")
-        if isinstance(path_raw, list):
-            asns = tuple(int(x) for x in path_raw if str(x).isdigit())
-        else:
-            asns = tuple(int(x) for x in str(path_raw).split() if x.isdigit())
+    for rrc in rrcs:
+        for entry in rrc.get("entries", []):
+            path_raw = entry.get("as_path", [])
+            if isinstance(path_raw, str):
+                asns = tuple(int(x) for x in path_raw.split() if x.isdigit())
+            else:
+                asns = tuple(int(x) for x in path_raw if str(x).isdigit())
 
-        # حذف AS prepending (ASN های تکراری پشت سرهم)
-        deduped: list = []
-        for a in asns:
-            if not deduped or deduped[-1] != a:
-                deduped.append(a)
-        asns = tuple(deduped)
+            # حذف AS prepending (ASN های تکراری پشت سرهم)
+            deduped: list = []
+            for a in asns:
+                if not deduped or deduped[-1] != a:
+                    deduped.append(a)
+            asns = tuple(deduped)
 
-        if asns and asns not in seen_paths:
-            seen_paths.add(asns)
-            paths.append(list(asns))
+            if asns and asns not in seen_paths:
+                seen_paths.add(asns)
+                paths.append(list(asns))
 
     if not paths:
         return
