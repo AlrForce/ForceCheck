@@ -30,7 +30,7 @@ def _code_color(code: int) -> str:
 
 
 def _header() -> None:
-    print(f"  {B}{'NODE':<{_COL_NODE}} {'LOCATION':<{_COL_LOC}} {'CODE':>{_COL_CODE}} {'TIME (ms)':>{_COL_TIME}}  STATUS{N}")
+    print(f"  {B}{'NODE':<{_COL_NODE}} {'LOCATION':<{_COL_LOC}} {'CODE':>{_COL_CODE}} {'TIME (s)':>{_COL_TIME}}  STATUS{N}")
     print("  " + "─" * _W)
 
 
@@ -53,12 +53,12 @@ def _row(node: str, info: list, res) -> bool:
     code     = entry[1] if len(entry) > 1 else 0
     time_sec = entry[2] if len(entry) > 2 else None
     try:
-        time_str = f"{float(time_sec) * 1000:.0f}"
+        time_str = f"{float(time_sec):.2f}s"
     except (TypeError, ValueError):
         time_str = "—"
 
     sc = _code_color(code if isinstance(code, int) else 0)
-    print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {sc}OK{N}", flush=True)
+    print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
     time.sleep(0.04)
     return isinstance(code, int) and 200 <= code < 400
 
