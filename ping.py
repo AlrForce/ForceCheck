@@ -24,15 +24,6 @@ def _is_iran(info: list) -> bool:
     return "iran" in (info[1] if len(info) > 1 else "").lower()
 
 
-def _parse(pings) -> tuple[str, str, bool]:
-    attempts = (pings[0] or []) if pings else []
-    ok = [p for p in attempts if p and p[0] == "OK"]
-    if ok:
-        avg = sum(p[1] * 1000 for p in ok) / len(ok)
-        return f"{avg:.1f}", f"{G}OK{N}", True
-    return "—", f"{R}timeout{N}", False
-
-
 def _header(title: str, color: str) -> None:
     print(f"\n  {color}▌ {title}{N}")
     print(f"  {B}{'NODE':<{_COL_NODE}} {'LOCATION':<{_COL_LOC}} {'RTT (ms)':>{_COL_RTT}}  STATUS{N}")
@@ -43,10 +34,20 @@ def _row(node: str, info: list, pings) -> bool:
     country  = info[1] if len(info) > 1 else "?"
     city     = info[2] if len(info) > 2 else "?"
     location = f"{city}, {country}"
-    rtt_str, status, ok = _parse(pings)
+    attempts = (pings[0] or []) if pings else []
+    ok_list  = [p for p in attempts if p and p[0] == "OK"]
+    if ok_list:
+        avg     = sum(p[1] * 1000 for p in ok_list) / len(ok_list)
+        rtt_str = f"{avg:.1f}"
+        status  = f"{G}OK{N}"
+        reached = True
+    else:
+        rtt_str = "—"
+        status  = f"{R}timeout{N}"
+        reached = False
     print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {rtt_str:>{_COL_RTT}}  {status}", flush=True)
     time.sleep(0.04)
-    return ok
+    return reached
 
 
 def run(host: str, max_nodes: int = 220) -> None:
@@ -77,42 +78,59 @@ def run(host: str, max_nodes: int = 220) -> None:
     print(f"\n{C}PING {host}  —  check-host.net{N}")
     print(f"{DIM}{total} probe nodes  |  {CHECK_HOST}/check-report/{request_id}{N}")
 
-    # ── جمع‌آوری نتایج ────────────────────────────────────────────────
-    results: dict = {}
-    for _ in range(20):
-        time.sleep(2)
-        r2      = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15)
-        results = r2.json()
-        done    = sum(1 for v in results.values() if v is not None)
-        print(f"\r  {DIM}collecting ... {done}/{total}{N}   ", end="", flush=True)
-        if done >= total:
-            break
-    print(f"\r{' ' * 40}\r", end="")
-
     iran_nodes   = [(n, info) for n, info in nodes.items() if _is_iran(info)]
     global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
 
-    iran_ok = iran_fail = global_ok = global_fail = 0
+    iran_seen   = set()
+    global_seen = set()
+    iran_hdr    = False
+    global_hdr  = False
+    iran_ok = global_ok = 0
 
-    # ── بخش ایران ─────────────────────────────────────────────────────
-    if iran_nodes:
-        _header("IRAN", Y)
+    # ── نمایش زنده ────────────────────────────────────────────────────
+    for _ in range(20):
+        time.sleep(1.5)
+        batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json()
+
+        # ایران اول
         for node, info in iran_nodes:
-            ok = _row(node, info, results.get(node))
-            if ok:
+            if node in iran_seen or batch.get(node) is None:
+                continue
+            iran_seen.add(node)
+            if not iran_hdr:
+                _header("IRAN", Y)
+                iran_hdr = True
+            if _row(node, info, batch[node]):
                 iran_ok += 1
-            else:
-                iran_fail += 1
 
-    # ── بخش جهانی ─────────────────────────────────────────────────────
-    if global_nodes:
-        _header("GLOBAL", C)
+        # بعد جهانی
         for node, info in global_nodes:
-            ok = _row(node, info, results.get(node))
-            if ok:
+            if node in global_seen or batch.get(node) is None:
+                continue
+            global_seen.add(node)
+            if not global_hdr:
+                _header("GLOBAL", C)
+                global_hdr = True
+            if _row(node, info, batch[node]):
                 global_ok += 1
-            else:
-                global_fail += 1
+
+        if len(iran_seen) + len(global_seen) >= total:
+            break
+
+    # ── نودهایی که اصلاً جواب ندادند ─────────────────────────────────
+    for node, info in iran_nodes:
+        if node not in iran_seen:
+            if not iran_hdr:
+                _header("IRAN", Y)
+                iran_hdr = True
+            _row(node, info, None)
+
+    for node, info in global_nodes:
+        if node not in global_seen:
+            if not global_hdr:
+                _header("GLOBAL", C)
+                global_hdr = True
+            _row(node, info, None)
 
     # ── نتیجه ─────────────────────────────────────────────────────────
     iran_total   = len(iran_nodes)
