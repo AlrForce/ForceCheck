@@ -78,28 +78,23 @@ def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
     # معکوس: اینترنت → origin
     path.reverse()
 
-    # ─── رنگ‌های ظریف ────────────────────────────────────────────────
-    _TEAL   = '\033[38;5;73m'   # teal آبی-فیروزه‌ای
-    _AMBER  = '\033[38;5;179m'  # amber طلایی گرم
-    _SAGE   = '\033[38;5;108m'  # sage سبز دودی ملایم
-    _WHITE  = '\033[97m'        # سفید روشن برای origin
-    _ARROW  = '\033[38;5;250m'  # خاکستری روشن برای خط اتصال
+    _CYAN   = '\033[96m'
+    _GOLD   = '\033[93m'
+    _WHITE  = '\033[97m'
+
+    _PALETTE = [_CYAN, _GOLD, _WHITE]
 
     total = len(path)
 
     def _hop_style(idx: int) -> tuple:
-        """(box_color, tag_str)"""
         if idx == total - 1:
             return _WHITE, f"  {_WHITE}◀ origin{N}"
         elif idx == 0:
-            return _TEAL, f"  {_TEAL}▲ upstream{N}"
+            return _CYAN, f"  {_CYAN}▲ upstream{N}"
         else:
-            # transit: بین teal و amber بسته به فاصله از origin
-            mid = (idx / (total - 1))
-            clr = _AMBER if mid >= 0.5 else _SAGE
-            return clr, f"  {clr}◆ transit{N}"
+            return _GOLD, f"  {_GOLD}◆ transit{N}"
 
-    print(f"\n  {_TEAL}── BGP MAP ──────────────────────────────────────────{N}")
+    print(f"\n  {_CYAN}── BGP MAP ──────────────────────────────────────────{N}")
     print(f"  {DIM}  {total} hops  ·  upstream → origin{N}\n")
 
     for i, (asn, name) in enumerate(path):
@@ -112,14 +107,14 @@ def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
         pad = " " * (inner_w - len(name) - 2)
 
         if i > 0:
-            print(f"        {_ARROW}│{N}")
+            print(f"        {DIM}│{N}")
 
         print(f"  {color}{top}{N}")
         print(f"  {color}║  {DIM}{name}{color}{pad}║{N}{tag}")
         print(f"  {color}{bot}{N}")
 
-    print(f"        {_ARROW}│{N}")
-    print(f"  {_AMBER}  ▶  {prefix}  ◀ destination{N}")
+    print(f"        {DIM}│{N}")
+    print(f"  {_GOLD}  ▶  {prefix}  ◀ destination{N}")
     print()
 
 
