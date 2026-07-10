@@ -49,22 +49,41 @@ def _row(node: str, info: list, res) -> bool:
         time.sleep(0.04)
         return False
 
-    # فرمت check-host.net: [1, time_seconds, http_code_int, "ip"]
+    # check-host.net HTTP format: [1, time_seconds, http_code, ...]
     time_sec = entry[1] if len(entry) > 1 else None
-    code_raw = entry[2] if len(entry) > 2 else 0
-    try:
-        code = int(code_raw)
-    except (TypeError, ValueError):
-        code = 0
+    code_raw = entry[2] if len(entry) > 2 else None
+
+    # استخراج کد HTTP: int 200 / "200" / "200 OK" / "HTTP/1.1 200 OK" → 200
+    code = 0
+    if code_raw is not None:
+        if isinstance(code_raw, int):
+            code = code_raw
+        else:
+            for part in str(code_raw).split():
+                try:
+                    n = int(part)
+                    if 100 <= n <= 599:
+                        code = n
+                        break
+                except ValueError:
+                    continue
+
     try:
         time_str = f"{float(time_sec):.2f}s"
     except (TypeError, ValueError):
         time_str = "—"
 
-    sc = _code_color(code)
-    print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
+    if code:
+        sc        = _code_color(code)
+        code_disp = str(code)
+    else:
+        sc        = G
+        code_disp = "—"
+
+    print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code_disp:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
     time.sleep(0.04)
-    return 200 <= code < 400
+    # اگر کد HTTP نداشتیم ولی entry[0]==1 بود → موفق
+    return (200 <= code < 400) if code else True
 
 
 def run(host: str, max_nodes: int = 220) -> None:
