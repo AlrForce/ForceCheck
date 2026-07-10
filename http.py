@@ -35,24 +35,29 @@ def _header() -> None:
 
 
 def _row(node: str, info: list, res) -> bool:
-    country  = info[1] if len(info) > 1 else "?"
-    city     = info[2] if len(info) > 2 else "?"
-    location = f"{city}, {country}"
+    # فقط اسم کشور
+    country = info[1] if len(info) > 1 else "?"
 
+    # فرمت check-host.net: [1, "200 OK", time_sec, "ip"] یا [0, "error msg"]
     entry = res[0] if res else None
 
-    if not entry or entry[0] != "OK":
-        err = entry[0] if entry else "error"
-        print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {'—':>{_COL_CODE}} {'—':>{_COL_TIME}}  {R}{err}{N}", flush=True)
+    if not entry or entry[0] != 1:
+        err = (entry[1] if entry and len(entry) > 1 else "timeout")[:18]
+        print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {'—':>{_COL_CODE}} {'—':>{_COL_TIME}}  {R}{err}{N}", flush=True)
         time.sleep(0.04)
         return False
 
-    code     = entry[1] if len(entry) > 1 else 0
-    time_sec = entry[2] if len(entry) > 2 else None
-    time_str = f"{time_sec * 1000:.0f}" if time_sec is not None else "—"
-    sc       = _code_color(code)
+    status_text = entry[1] if len(entry) > 1 else "—"
+    time_sec    = entry[2] if len(entry) > 2 else None
+    time_str    = f"{time_sec * 1000:.0f}" if time_sec is not None else "—"
 
-    print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {sc}{code:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {sc}OK{N}", flush=True)
+    try:
+        code = int(status_text.split()[0])
+    except (IndexError, ValueError, AttributeError):
+        code = 0
+
+    sc = _code_color(code)
+    print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {sc}OK{N}", flush=True)
     time.sleep(0.04)
     return 200 <= code < 400
 
