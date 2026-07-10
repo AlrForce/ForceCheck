@@ -42,10 +42,9 @@ def _row(node: str, info: list, res) -> bool:
     entry = res[0] if res else None
 
     if not entry or entry[0] != 1:
-        # entry[1] میتواند string پیام خطا یا float باشد
         err_raw = entry[1] if entry and len(entry) > 1 else "timeout"
         err     = str(err_raw)[:18] if isinstance(err_raw, str) else "timeout"
-        print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {'—':>{_COL_CODE}} {'—':>{_COL_TIME}}  {R}{err}{N}", flush=True)
+        print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {R}{'400':>{_COL_CODE}}{N} {'—':>{_COL_TIME}}  {R}{err}{N}", flush=True)
         time.sleep(0.04)
         return False
 
@@ -78,7 +77,7 @@ def _row(node: str, info: list, res) -> bool:
         code_disp = str(code)
     else:
         sc        = G
-        code_disp = "—"
+        code_disp = "200"
 
     print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code_disp:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
     time.sleep(0.04)
