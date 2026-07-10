@@ -101,12 +101,18 @@ def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
         tag       = f"  {G}◀ origin{N}" if is_origin else ""
         label     = f"AS{asn}"
 
+        # عرض کادر بر اساس طول واقعی محتوا
+        inner_w = max(len(label) + 6, len(name) + 4)
+        top = f"╔═[ {label} ]{'═' * (inner_w - len(label) - 5)}╗"
+        bot = f"╚{'═' * inner_w}╝"
+        pad = " " * (inner_w - len(name) - 2)
+
         if i > 0:
             print(f"        {DIM}│{N}")
 
-        print(f"  {color}╔═[ {label:<{col}} ]═══════════════════════════════════╗{N}")
-        print(f"  {color}║  {DIM}{name:<42}{color}║{N}{tag}")
-        print(f"  {color}╚════════════════════════════════════════════════╝{N}")
+        print(f"  {color}{top}{N}")
+        print(f"  {color}║  {DIM}{name}{color}{pad}║{N}{tag}")
+        print(f"  {color}{bot}{N}")
 
     print(f"        {DIM}│{N}")
     print(f"  {G}  ▶  {prefix}  ◀ destination{N}")
