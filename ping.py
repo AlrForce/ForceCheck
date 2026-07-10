@@ -78,7 +78,8 @@ def run(host: str, max_nodes: int = 220) -> None:
             else:
                 rtt_str, status = "—", f"{R}timeout{N}"
 
-            print(f"  {node:<{col_node}} {location:<{col_loc}} {rtt_str:>{col_rtt}}  {status}")
+            print(f"  {node:<{col_node}} {location:<{col_loc}} {rtt_str:>{col_rtt}}  {status}", flush=True)
+            time.sleep(0.04)
 
         if len(seen) >= total:
             break
