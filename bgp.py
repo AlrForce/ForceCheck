@@ -39,6 +39,75 @@ def _api(sess, endpoint: str, resource: str) -> dict:
         return {}
 
 
+def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
+    """نمایش AS path به صورت ASCII map"""
+    d = _api(sess, "bgp-routes", prefix)
+    routes = d.get("routes", [])
+    if not routes:
+        return
+
+    # جمع‌آوری مسیرهای منحصربه‌فرد
+    seen_paths: set = set()
+    paths = []
+    for route in routes:
+        path_raw = route.get("as_path", "")
+        if isinstance(path_raw, list):
+            asns = tuple(int(x) for x in path_raw if str(x).isdigit())
+        else:
+            asns = tuple(int(x) for x in str(path_raw).split() if x.isdigit())
+
+        # حذف AS prepending (ASN های تکراری پشت سرهم)
+        deduped: list = []
+        for a in asns:
+            if not deduped or deduped[-1] != a:
+                deduped.append(a)
+        asns = tuple(deduped)
+
+        if asns and asns not in seen_paths:
+            seen_paths.add(asns)
+            paths.append(list(asns))
+
+    if not paths:
+        return
+
+    # کوتاه‌ترین مسیر
+    shortest = min(paths, key=len)
+
+    # دریافت نام‌های ASN به صورت bulk
+    asn_names: dict = {origin_asn: origin_holder}
+    try:
+        resource_str = ",".join(f"AS{a}" for a in dict.fromkeys(shortest))
+        names_d = _api(sess, "as-names", resource_str)
+        for asn_str, name in names_d.get("names", {}).items():
+            try:
+                asn_names[int(asn_str)] = name
+            except (ValueError, TypeError):
+                pass
+    except Exception:
+        pass
+
+    # نمایش
+    W = 46
+    print(f"\n  {C}── BGP MAP ──────────────────────────────────────────{N}\n")
+    print(f"  {DIM}path hops: {len(shortest)}{N}\n")
+
+    for i, asn in enumerate(shortest):
+        name     = asn_names.get(asn, "—")
+        is_origin = (asn == origin_asn)
+        color    = G if is_origin else B
+        tag      = f"  {G}◀ origin{N}" if is_origin else ""
+
+        if i > 0:
+            print(f"  {DIM}      │{N}")
+
+        label = f"AS{asn}"
+        print(f"  {color}[ {label:<8} ]{N}  {DIM}{name}{N}{tag}")
+
+    print(f"  {DIM}      │{N}")
+    print(f"  {G}[ {prefix:<8} ]{N}  {G}◀ destination{N}")
+    print()
+
+
 def run(target: str) -> None:
     import requests
     sess = requests.Session()
@@ -66,13 +135,16 @@ def _run_ip(sess, target: str) -> None:
         print(f"  {Y}No ASN associated with {target}.{N}\n")
         return
 
-    # اطلاعات geo از ipinfo.io
+    # geo از ipinfo.io
     geo = {}
     try:
         ip  = target.split("/")[0]
         geo = sess.get(f"{IPINFO}/{ip}/json", timeout=8).json()
     except Exception:
         pass
+
+    origin_asn    = asns[0].get("asn", 0)
+    origin_holder = asns[0].get("holder", "—")
 
     for asn_info in asns:
         asn    = asn_info.get("asn", "—")
@@ -90,14 +162,15 @@ def _run_ip(sess, target: str) -> None:
         if geo.get("org"):
             _row("Org",     geo["org"])
 
-    # اطلاعات RIR
+    # RIR
     rir_d = _api(sess, "rir", prefix)
     rirs  = rir_d.get("rirs", [])
     if rirs:
         print(f"\n  {DIM}RIR Allocation{N}")
         _row("  RIR", rirs[0].get("rir", "—"))
 
-    print()
+    # AS Path Map
+    _bgp_map(sess, prefix, origin_asn, origin_holder)
 
 
 def _run_asn(sess, asn: int) -> None:
