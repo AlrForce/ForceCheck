@@ -49,18 +49,22 @@ def _row(node: str, info: list, res) -> bool:
         time.sleep(0.04)
         return False
 
-    # فرمت موفق: [1, http_code_int, time_float, "ip"]
-    code     = entry[1] if len(entry) > 1 else 0
-    time_sec = entry[2] if len(entry) > 2 else None
+    # فرمت check-host.net: [1, time_seconds, http_code_int, "ip"]
+    time_sec = entry[1] if len(entry) > 1 else None
+    code_raw = entry[2] if len(entry) > 2 else 0
+    try:
+        code = int(code_raw)
+    except (TypeError, ValueError):
+        code = 0
     try:
         time_str = f"{float(time_sec):.2f}s"
     except (TypeError, ValueError):
         time_str = "—"
 
-    sc = _code_color(code if isinstance(code, int) else 0)
+    sc = _code_color(code)
     print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
     time.sleep(0.04)
-    return isinstance(code, int) and 200 <= code < 400
+    return 200 <= code < 400
 
 
 def run(host: str, max_nodes: int = 220) -> None:
