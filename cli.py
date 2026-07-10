@@ -1,8 +1,8 @@
 """
-fc — interactive menu for ForceCheck tools
+fcheck — interactive menu for ForceCheck tools
 
 Usage:
-  fc!
+  fcheck
 """
 
 import sys
@@ -80,7 +80,7 @@ def _show_about() -> None:
 def _run_uninstall() -> None:
     print(f"\n  {R}uninstall ForceCheck{N}\n")
     print(f"  {Y}This will remove ForceCheck and all its commands from your system.{N}")
-    print(f"  {DIM}(ping!  bgp!  trace!  http!  whois!  checkall!  fc){N}\n")
+    print(f"  {DIM}(ping!  bgp!  trace!  http!  whois!  checkall!  fcheck){N}\n")
 
     try:
         confirm = input(f"    {R}Type 'yes' to confirm:{N} ").strip().lower()
@@ -112,7 +112,7 @@ def _run_uninstall() -> None:
 
     # حذف دستورهای !
     scripts = sysconfig.get_path("scripts")
-    for cmd in ("ping!", "bgp!", "trace!", "http!", "whois!", "checkall!", "fc"):
+    for cmd in ("ping!", "bgp!", "trace!", "http!", "whois!", "checkall!", "fcheck"):
         path = f"{scripts}/{cmd}"
         if __import__("os").path.exists(path):
             try:
@@ -178,7 +178,7 @@ def _run_update() -> None:
     if failed:
         print(f"\n  {Y}Update completed with {len(failed)} failed file(s).{N}")
     else:
-        print(f"\n  {G}Update complete — please restart fc! to apply changes.{N}")
+        print(f"\n  {G}Update complete — please restart fcheck to apply changes.{N}")
 
 
 def _run(choice: int) -> None:
