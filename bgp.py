@@ -78,40 +78,48 @@ def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
     # معکوس: اینترنت → origin
     path.reverse()
 
-    # ─── نمایش ───────────────────────────────────────────────────────
+    # ─── رنگ‌های ظریف ────────────────────────────────────────────────
+    _TEAL   = '\033[38;5;73m'   # teal آبی-فیروزه‌ای
+    _AMBER  = '\033[38;5;179m'  # amber طلایی گرم
+    _SAGE   = '\033[38;5;108m'  # sage سبز دودی ملایم
+    _WHITE  = '\033[97m'        # سفید روشن برای origin
+    _ARROW  = '\033[38;5;250m'  # خاکستری روشن برای خط اتصال
+
     total = len(path)
 
     def _hop_style(idx: int) -> tuple:
         """(box_color, tag_str)"""
         if idx == total - 1:
-            return G, f"  {G}◀ origin{N}"
+            return _WHITE, f"  {_WHITE}◀ origin{N}"
         elif idx == 0:
-            return C, f"  {C}▲ upstream{N}"
+            return _TEAL, f"  {_TEAL}▲ upstream{N}"
         else:
-            return Y, f"  {Y}◆ transit{N}"
+            # transit: بین teal و amber بسته به فاصله از origin
+            mid = (idx / (total - 1))
+            clr = _AMBER if mid >= 0.5 else _SAGE
+            return clr, f"  {clr}◆ transit{N}"
 
-    print(f"\n  {C}── BGP MAP ──────────────────────────────────────────{N}")
+    print(f"\n  {_TEAL}── BGP MAP ──────────────────────────────────────────{N}")
     print(f"  {DIM}  {total} hops  ·  upstream → origin{N}\n")
 
     for i, (asn, name) in enumerate(path):
         color, tag = _hop_style(i)
         label      = f"AS{asn}"
 
-        # عرض کادر بر اساس طول واقعی محتوا
         inner_w = max(len(label) + 6, len(name) + 4)
         top = f"╔═[ {label} ]{'═' * (inner_w - len(label) - 5)}╗"
         bot = f"╚{'═' * inner_w}╝"
         pad = " " * (inner_w - len(name) - 2)
 
         if i > 0:
-            print(f"        {DIM}│{N}")
+            print(f"        {_ARROW}│{N}")
 
         print(f"  {color}{top}{N}")
         print(f"  {color}║  {DIM}{name}{color}{pad}║{N}{tag}")
         print(f"  {color}{bot}{N}")
 
-    print(f"        {DIM}│{N}")
-    print(f"  {G}  ▶  {prefix}  ◀ destination{N}")
+    print(f"        {_ARROW}│{N}")
+    print(f"  {_AMBER}  ▶  {prefix}  ◀ destination{N}")
     print()
 
 
