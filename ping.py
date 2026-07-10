@@ -30,10 +30,10 @@ def _header(title: str, color: str) -> None:
     print("  " + "─" * _W)
 
 
-def _row(node: str, info: list, pings) -> bool:
+def _row(node: str, info: list, pings, full_loc: bool = True) -> bool:
     country  = info[1] if len(info) > 1 else "?"
     city     = info[2] if len(info) > 2 else "?"
-    location = f"{city}, {country}"
+    location = f"{city}, {country}" if full_loc else country
     attempts = (pings[0] or []) if pings else []
     ok_list  = [p for p in attempts if p and p[0] == "OK"]
     if ok_list:
@@ -111,7 +111,7 @@ def run(host: str, max_nodes: int = 220) -> None:
             if not global_hdr:
                 _header("GLOBAL", C)
                 global_hdr = True
-            if _row(node, info, batch[node]):
+            if _row(node, info, batch[node], full_loc=False):
                 global_ok += 1
 
         if len(iran_seen) + len(global_seen) >= total:
@@ -130,7 +130,7 @@ def run(host: str, max_nodes: int = 220) -> None:
             if not global_hdr:
                 _header("GLOBAL", C)
                 global_hdr = True
-            _row(node, info, None)
+            _row(node, info, None, full_loc=False)
 
     # ── نتیجه ─────────────────────────────────────────────────────────
     iran_total   = len(iran_nodes)
