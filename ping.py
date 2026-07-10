@@ -17,7 +17,8 @@ CHECK_HOST = "https://check-host.net"
 _COL_NODE = 36
 _COL_LOC  = 26
 _COL_RTT  = 9
-_W        = _COL_NODE + _COL_LOC + _COL_RTT + 12
+_COL_REQ  = 5
+_W        = _COL_NODE + _COL_LOC + _COL_RTT + _COL_REQ + 14
 
 
 def _is_iran(info: list) -> bool:
@@ -26,7 +27,7 @@ def _is_iran(info: list) -> bool:
 
 def _header(title: str, color: str) -> None:
     print(f"\n  {color}▌ {title}{N}")
-    print(f"  {B}{'NODE':<{_COL_NODE}} {'LOCATION':<{_COL_LOC}} {'RTT (ms)':>{_COL_RTT}}  STATUS{N}")
+    print(f"  {B}{'NODE':<{_COL_NODE}} {'LOCATION':<{_COL_LOC}} {'RTT (ms)':>{_COL_RTT}}  {'REQ':<{_COL_REQ}}  STATUS{N}")
     print("  " + "─" * _W)
 
 
@@ -36,6 +37,9 @@ def _row(node: str, info: list, pings, full_loc: bool = True) -> bool:
     location = f"{city}, {country}" if full_loc else country
     attempts = (pings[0] or []) if pings else []
     ok_list  = [p for p in attempts if p and p[0] == "OK"]
+    total_a  = len(attempts)
+    ok_a     = len(ok_list)
+    req_str  = f"{ok_a}/{total_a}" if total_a else "—"
     if ok_list:
         avg     = sum(p[1] * 1000 for p in ok_list) / len(ok_list)
         rtt_str = f"{avg:.1f}"
@@ -45,7 +49,7 @@ def _row(node: str, info: list, pings, full_loc: bool = True) -> bool:
         rtt_str = "—"
         status  = f"{R}timeout{N}"
         reached = False
-    print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {rtt_str:>{_COL_RTT}}  {status}", flush=True)
+    print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {rtt_str:>{_COL_RTT}}  {req_str:<{_COL_REQ}}  {status}", flush=True)
     time.sleep(0.04)
     return reached
 
