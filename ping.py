@@ -106,8 +106,8 @@ def main() -> None:
     ap.add_argument("host", help="IP address or hostname")
     ap.add_argument(
         "-n", "--nodes",
-        type=int, default=10, metavar="N",
-        help="number of probe nodes, 1-220 (default: 10)",
+        type=int, default=220, metavar="N",
+        help="number of probe nodes, 1-220 (default: 220)",
     )
 
     args = ap.parse_args()
