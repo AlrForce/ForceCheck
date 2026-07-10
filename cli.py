@@ -131,6 +131,8 @@ def _run_uninstall() -> None:
 
 
 def _run_update() -> None:
+    import os, sysconfig, urllib.request
+
     print(f"\n  {B}update{N}")
     print(f"  {DIM}current version: {__version__}{N}")
     print(f"  {DIM}source: {REPO_URL}{N}\n")
@@ -146,17 +148,37 @@ def _run_update() -> None:
         return
 
     print()
+
     try:
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install", "--upgrade",
-            f"{REPO_URL}/archive/refs/heads/main.tar.gz",
-            "--break-system-packages",
-        ])
-        print(f"\n  {G}update complete — please restart fc! to use the new version.{N}")
-    except subprocess.CalledProcessError:
-        print(f"\n  {R}update failed — check your internet connection and try again.{N}")
-    except FileNotFoundError:
-        print(f"\n  {R}pip not found — run manually:{N}\n  pip install --upgrade git+{REPO_URL}")
+        site = __import__("site").getsitepackages()[0]
+    except Exception:
+        site = sysconfig.get_path("purelib")
+
+    pkg_dir  = os.path.join(site, "forcecheck")
+    raw_base = f"{REPO_URL}/raw/refs/heads/master"
+    pyfiles  = [
+        "__init__.py", "bgp.py", "checkall.py", "cli.py",
+        "colors.py", "_deps.py", "http.py", "ping.py",
+        "trace.py", "whois.py",
+    ]
+
+    os.makedirs(pkg_dir, exist_ok=True)
+    failed = []
+
+    for f in pyfiles:
+        url  = f"{raw_base}/{f}"
+        dest = os.path.join(pkg_dir, f)
+        try:
+            urllib.request.urlretrieve(url, dest)
+            print(f"  {G}✓{N} {f}")
+        except Exception:
+            failed.append(f)
+            print(f"  {R}✗{N} {f}")
+
+    if failed:
+        print(f"\n  {Y}Update completed with {len(failed)} failed file(s).{N}")
+    else:
+        print(f"\n  {G}Update complete — please restart fc! to apply changes.{N}")
 
 
 def _run(choice: int) -> None:
