@@ -27,7 +27,7 @@ _ITEMS = [
     ("ping!",     "distributed ping",                "Host or IP",          None),
     ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",  None),
     ("trace!",    "distributed traceroute",          "Host or IP",          "nodes"),
-    ("http!",     "HTTP check from global nodes",    "URL or host",         "nodes"),
+    ("http!",     "HTTP check from global nodes",    "URL or host",         None),
     ("whois!",    "IP / ASN WHOIS via RDAP",         "IP, hostname, or ASN", None),
     ("checkall!", "run all checks in parallel",      "Host or IP",          None),
 ]
@@ -231,7 +231,7 @@ def _run(choice: int) -> None:
             run(target, nodes)
         elif choice == 4:
             from .http import run
-            run(target, nodes)
+            run(target, 220)
         elif choice == 5:
             from .whois import _ASN_RE, run_ip, run_asn
             m = _ASN_RE.match(target)

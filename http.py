@@ -14,8 +14,14 @@ from ._deps import ensure_deps
 
 CHECK_HOST = "https://check-host.net"
 
-# رنگ‌بندی بر اساس HTTP status code
-def _status_color(code: int) -> str:
+_COL_NODE = 36
+_COL_LOC  = 20
+_COL_CODE = 6
+_COL_TIME = 10
+_W        = _COL_NODE + _COL_LOC + _COL_CODE + _COL_TIME + 12
+
+
+def _code_color(code: int) -> str:
     if 200 <= code < 300:
         return G
     if 300 <= code < 400:
@@ -23,7 +29,35 @@ def _status_color(code: int) -> str:
     return R
 
 
-def run(host: str, max_nodes: int = 10) -> None:
+def _header() -> None:
+    print(f"  {B}{'NODE':<{_COL_NODE}} {'LOCATION':<{_COL_LOC}} {'CODE':>{_COL_CODE}} {'TIME (ms)':>{_COL_TIME}}  STATUS{N}")
+    print("  " + "─" * _W)
+
+
+def _row(node: str, info: list, res) -> bool:
+    country  = info[1] if len(info) > 1 else "?"
+    city     = info[2] if len(info) > 2 else "?"
+    location = f"{city}, {country}"
+
+    entry = res[0] if res else None
+
+    if not entry or entry[0] != "OK":
+        err = entry[0] if entry else "error"
+        print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {'—':>{_COL_CODE}} {'—':>{_COL_TIME}}  {R}{err}{N}", flush=True)
+        time.sleep(0.04)
+        return False
+
+    code     = entry[1] if len(entry) > 1 else 0
+    time_sec = entry[2] if len(entry) > 2 else None
+    time_str = f"{time_sec * 1000:.0f}" if time_sec is not None else "—"
+    sc       = _code_color(code)
+
+    print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {sc}{code:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {sc}OK{N}", flush=True)
+    time.sleep(0.04)
+    return 200 <= code < 400
+
+
+def run(host: str, max_nodes: int = 220) -> None:
     import requests
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
@@ -43,62 +77,37 @@ def run(host: str, max_nodes: int = 10) -> None:
     data       = r.json()
     request_id = data.get("request_id", "")
     nodes      = data.get("nodes", {})
+    total      = len(nodes)
 
     if not nodes:
         sys.exit(f"{R}No nodes returned — check-host.net may have rejected the host.{N}")
 
     print(f"\n{C}HTTP {host}  —  check-host.net{N}")
-    print(f"{DIM}{len(nodes)} probe nodes  |  {CHECK_HOST}/check-report/{request_id}{N}\n")
+    print(f"{DIM}{total} probe nodes  |  {CHECK_HOST}/check-report/{request_id}{N}\n")
+    _header()
 
-    results: dict = {}
-    for _ in range(15):
-        time.sleep(2)
-        r2 = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15)
-        results = r2.json()
-        done = sum(1 for v in results.values() if v is not None)
-        print(f"\r  waiting for results ... {done}/{len(nodes)}", end="", flush=True)
-        if done >= len(nodes):
-            break
-    print()
-
-    col_node = 36
-    col_loc  = 26
-    col_ip   = 17
-    col_time = 10
-
-    print(f"\n  {B}{'NODE':<{col_node}} {'LOCATION':<{col_loc}} {'RESOLVED IP':<{col_ip}} {'TIME (ms)':>{col_time}}  STATUS{N}")
-    print("  " + "─" * (col_node + col_loc + col_ip + col_time + 12))
-
+    seen     = set()
     ok_count = 0
+
+    for _ in range(20):
+        time.sleep(1.5)
+        batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json()
+
+        for node, info in nodes.items():
+            if node in seen or batch.get(node) is None:
+                continue
+            seen.add(node)
+            if _row(node, info, batch[node]):
+                ok_count += 1
+
+        if len(seen) >= total:
+            break
+
+    # نودهایی که جواب ندادند
     for node, info in nodes.items():
-        country  = info[1] if len(info) > 1 else "?"
-        city     = info[2] if len(info) > 2 else "?"
-        location = f"{city}, {country}"
+        if node not in seen:
+            _row(node, info, None)
 
-        res = results.get(node)
-        if not res:
-            print(f"  {node:<{col_node}} {location:<{col_loc}} {'—':<{col_ip}} {'—':>{col_time}}  {Y}pending{N}")
-            continue
-
-        entry = res[0] if res else None
-
-        # فرمت پاسخ: [status_str, status_code, time_sec, resolved_ip]
-        if not entry or entry[0] != "OK":
-            err = entry[0] if entry else "error"
-            print(f"  {node:<{col_node}} {location:<{col_loc}} {'—':<{col_ip}} {'—':>{col_time}}  {R}{err}{N}")
-            continue
-
-        code     = entry[1] if len(entry) > 1 else 0
-        time_sec = entry[2] if len(entry) > 2 else None
-        ip       = entry[3] if len(entry) > 3 and entry[3] else "—"
-
-        time_str = f"{time_sec * 1000:.0f}" if time_sec is not None else "—"
-        sc       = _status_color(code)
-
-        print(f"  {node:<{col_node}} {location:<{col_loc}} {ip:<{col_ip}} {time_str:>{col_time}}  {sc}{code}{N}")
-        ok_count += 1
-
-    total = len(nodes)
     pct   = ok_count * 100 // total if total else 0
     color = G if pct >= 80 else (Y if pct >= 40 else R)
     print(f"\n  {color}{ok_count}/{total} nodes reached ({pct}%){N}\n")
@@ -114,8 +123,8 @@ def main() -> None:
     ap.add_argument("host", help="URL to check (http:// or https://)")
     ap.add_argument(
         "-n", "--nodes",
-        type=int, default=10, metavar="N",
-        help="number of probe nodes, 1-220 (default: 10)",
+        type=int, default=220, metavar="N",
+        help="number of probe nodes, 1-220 (default: 220)",
     )
 
     args = ap.parse_args()
