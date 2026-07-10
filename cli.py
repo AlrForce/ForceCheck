@@ -178,7 +178,12 @@ def _run_update() -> None:
     if failed:
         print(f"\n  {Y}Update completed with {len(failed)} failed file(s).{N}")
     else:
-        print(f"\n  {G}Update complete — please restart fcheck to apply changes.{N}")
+        print(f"\n  {G}Update complete!{N}")
+        try:
+            input(f"\n  {DIM}Press Enter to restart fcheck ...{N}")
+        except (EOFError, KeyboardInterrupt):
+            print()
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 def _run(choice: int) -> None:
