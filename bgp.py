@@ -43,73 +43,62 @@ def _api(sess, endpoint: str, resource: str, silent: bool = False) -> dict:
 
 
 def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
-    """نمایش AS path به صورت ASCII map"""
-    # looking-glass: AS path از چندین RRC collector
-    d = _api(sess, "looking-glass", prefix, silent=True)
-    rrcs = d.get("rrcs", [])
-    if not rrcs:
+    """ساخت و نمایش BGP path با استفاده از asn-neighbours"""
+
+    # ساخت زنجیره از origin به سمت بالا (upstream)
+    path = [(origin_asn, origin_holder)]
+    visited = {origin_asn}
+    current = origin_asn
+
+    for _ in range(4):
+        d = _api(sess, "asn-neighbours", f"AS{current}", silent=True)
+        neighbours = d.get("neighbours", [])
+
+        # فقط upstream (type=left) — مرتب بر اساس power
+        upstreams = sorted(
+            [n for n in neighbours if n.get("type") == "left"],
+            key=lambda x: x.get("power", 0), reverse=True
+        )
+        if not upstreams:
+            break
+
+        next_asn = upstreams[0].get("asn")
+        if not next_asn or next_asn in visited:
+            break
+
+        visited.add(next_asn)
+        info = _api(sess, "as-overview", f"AS{next_asn}", silent=True)
+        name = info.get("holder", f"AS{next_asn}")
+        path.append((next_asn, name))
+        current = next_asn
+
+    if len(path) < 2:
         return
 
-    # جمع‌آوری مسیرهای منحصربه‌فرد از همه rrcs
-    seen_paths: set = set()
-    paths = []
-    for rrc in rrcs:
-        for entry in rrc.get("entries", []):
-            path_raw = entry.get("as_path", [])
-            if isinstance(path_raw, str):
-                asns = tuple(int(x) for x in path_raw.split() if x.isdigit())
-            else:
-                asns = tuple(int(x) for x in path_raw if str(x).isdigit())
+    # معکوس: اینترنت → origin
+    path.reverse()
 
-            # حذف AS prepending (ASN های تکراری پشت سرهم)
-            deduped: list = []
-            for a in asns:
-                if not deduped or deduped[-1] != a:
-                    deduped.append(a)
-            asns = tuple(deduped)
+    # ─── نمایش ───────────────────────────────────────────────────────
+    col = 10   # عرض ستون ASN label
 
-            if asns and asns not in seen_paths:
-                seen_paths.add(asns)
-                paths.append(list(asns))
+    print(f"\n  {C}── BGP MAP ──────────────────────────────────────────{N}")
+    print(f"  {DIM}  {len(path)} hops  ·  upstream → origin{N}\n")
 
-    if not paths:
-        return
-
-    # کوتاه‌ترین مسیر
-    shortest = min(paths, key=len)
-
-    # دریافت نام‌های ASN به صورت bulk
-    asn_names: dict = {origin_asn: origin_holder}
-    try:
-        resource_str = ",".join(f"AS{a}" for a in dict.fromkeys(shortest))
-        names_d = _api(sess, "as-names", resource_str)
-        for asn_str, name in names_d.get("names", {}).items():
-            try:
-                asn_names[int(asn_str)] = name
-            except (ValueError, TypeError):
-                pass
-    except Exception:
-        pass
-
-    # نمایش
-    W = 46
-    print(f"\n  {C}── BGP MAP ──────────────────────────────────────────{N}\n")
-    print(f"  {DIM}path hops: {len(shortest)}{N}\n")
-
-    for i, asn in enumerate(shortest):
-        name     = asn_names.get(asn, "—")
+    for i, (asn, name) in enumerate(path):
         is_origin = (asn == origin_asn)
-        color    = G if is_origin else B
-        tag      = f"  {G}◀ origin{N}" if is_origin else ""
+        color     = G if is_origin else B
+        tag       = f"  {G}◀ origin{N}" if is_origin else ""
+        label     = f"AS{asn}"
 
         if i > 0:
-            print(f"  {DIM}      │{N}")
+            print(f"        {DIM}│{N}")
 
-        label = f"AS{asn}"
-        print(f"  {color}[ {label:<8} ]{N}  {DIM}{name}{N}{tag}")
+        print(f"  {color}╔═[ {label:<{col}} ]═══════════════════════════════════╗{N}")
+        print(f"  {color}║  {DIM}{name:<42}{color}║{N}{tag}")
+        print(f"  {color}╚════════════════════════════════════════════════╝{N}")
 
-    print(f"  {DIM}      │{N}")
-    print(f"  {G}[ {prefix:<8} ]{N}  {G}◀ destination{N}")
+    print(f"        {DIM}│{N}")
+    print(f"  {G}  ▶  {prefix}  ◀ destination{N}")
     print()
 
 
