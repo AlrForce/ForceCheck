@@ -80,7 +80,7 @@ def _show_about() -> None:
 def _run_uninstall() -> None:
     print(f"\n  {R}uninstall ForceCheck{N}\n")
     print(f"  {Y}This will remove ForceCheck and all its commands from your system.{N}")
-    print(f"  {DIM}(ping!  bgp!  trace!  http!  whois!  checkall!  fc!){N}\n")
+    print(f"  {DIM}(ping!  bgp!  trace!  http!  whois!  checkall!  fc){N}\n")
 
     try:
         confirm = input(f"    {R}Type 'yes' to confirm:{N} ").strip().lower()
@@ -112,7 +112,7 @@ def _run_uninstall() -> None:
 
     # حذف دستورهای !
     scripts = sysconfig.get_path("scripts")
-    for cmd in ("ping!", "bgp!", "trace!", "http!", "whois!", "checkall!", "fc!"):
+    for cmd in ("ping!", "bgp!", "trace!", "http!", "whois!", "checkall!", "fc"):
         path = f"{scripts}/{cmd}"
         if __import__("os").path.exists(path):
             try:
