@@ -4,8 +4,13 @@
 
 ForceCheck is a lightweight CLI tool for network engineers, sysadmins, and security researchers who want real-world network visibility without leaving the command line.
 
-- **`ping`** — sends probes from 200+ nodes across 50+ countries simultaneously via [check-host.net](https://check-host.net), so you see latency and reachability as the world sees it — not just from your machine.
-- **`bgp`** — queries the [lg.sdv.fr](http://lg.sdv.fr) looking glass (AS8839, France) to inspect live BGP routing paths, prefixes, and AS paths for any IP or subnet.
+- **`ping!`** — distributed ping from 200+ nodes across 50+ countries via [check-host.net](https://check-host.net)
+- **`bgp!`** — BGP route lookup via [lg.sdv.fr](http://lg.sdv.fr) looking glass (AS8839)
+- **`trace!`** — distributed traceroute from multiple global nodes
+- **`http!`** — HTTP status and response time check from global nodes
+- **`whois!`** — IP and ASN WHOIS lookup via RDAP
+- **`checkall!`** — run all checks in parallel and display a unified summary
+- **`fcheck`** — interactive menu for all tools
 
 No account. No API key. One install.
 
@@ -13,8 +18,16 @@ No account. No API key. One install.
 
 ## Install
 
+**Linux / macOS**
+
 ```bash
-pip install git+https://github.com/YOUR_USERNAME/ForceCheck.git
+curl -sSL https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.sh | bash
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.ps1 | iex
 ```
 
 > Requires Python 3.8+
@@ -23,61 +36,54 @@ pip install git+https://github.com/YOUR_USERNAME/ForceCheck.git
 
 ## Usage
 
-### `ping` — Distributed Ping
-
-Check reachability and latency from multiple locations worldwide.
+### Interactive menu
 
 ```bash
-ping 8.8.8.8
-ping google.com
-ping 1.1.1.1 -n 20
+fcheck
 ```
 
 ```
-PING 8.8.8.8  —  check-host.net
-10 probe nodes  |  https://check-host.net/check-report/...
+╔══════════════════════════════════════════════════════╗
+║               ForceCheck  v1.0.0                     ║
+║    network diagnostics · from the world's eyes       ║
+╚══════════════════════════════════════════════════════╝
 
-  NODE                                 LOCATION                    RTT (ms)  STATUS
-  ────────────────────────────────────────────────────────────────────────────────
-  us1.node.check-host.net              Los Angeles, USA               12.3  OK
-  de1.node.check-host.net              Frankfurt, Germany              8.7  OK
-  ir1.node.check-host.net              Tehran, Iran                   21.4  OK
-  ru1.node.check-host.net              Moscow, Russia                   —   timeout
+  1  ping!        distributed ping
+  2  bgp!         BGP route lookup
+  3  trace!       distributed traceroute
+  4  http!        HTTP check from global nodes
+  5  whois!       IP / ASN WHOIS via RDAP
+  6  checkall!    run all checks in parallel
+  ──────────────────────────────────────────────────────
+  u  update       download latest version from GitHub
+  a  about        about & support
+  x  uninstall    remove ForceCheck from this system
+  0  exit
 
-  9/10 nodes responded (90%)
+  Select:
 ```
 
-| Flag | Description |
-|------|-------------|
-| `-n`, `--nodes N` | Number of probe nodes, 1–220 (default: `10`) |
-
----
-
-### `bgp` — BGP Route Lookup
-
-Inspect BGP routing information for an IP, prefix, or AS number via the SdV looking glass.
+### Direct commands
 
 ```bash
-bgp 1.1.1.1
-bgp 8.8.8.0/24
-bgp 185.220.101.0/24
-```
+ping!     8.8.8.8
+ping!     google.com -n 20
 
----
+bgp!      1.1.1.1
+bgp!      8.8.8.0/24
 
-## Why ForceCheck?
+trace!    8.8.8.8
+trace!    google.com -n 3
 
-Most ping and BGP tools either require an account, hit rate limits, or only test from a single point. ForceCheck combines two reliable, open sources into a clean terminal interface — giving you a global perspective on any IP in seconds.
+http!     https://example.com
+http!     https://example.com -n 20
 
----
+whois!    8.8.8.8
+whois!    google.com
+whois!    AS15169
 
-## Note on the `ping` command
-
-This package installs a `ping` command. On Linux, if `~/.local/bin` is before `/bin` in your `$PATH`, it will shadow the system ping. To use the system ping explicitly:
-
-```bash
-/bin/ping 8.8.8.8    # system ping
-ping 8.8.8.8         # ForceCheck
+checkall! 8.8.8.8
+checkall! google.com
 ```
 
 ---
