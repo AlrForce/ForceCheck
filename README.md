@@ -30,7 +30,21 @@ curl -sSL https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.s
 irm https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.ps1 | iex
 ```
 
+The Windows installer needs no `git` — it installs straight from the repo
+archive and pulls in dependencies automatically. After it finishes, open a
+**new** terminal so the commands are picked up from PATH.
+
+**Any platform (pip)**
+
+```bash
+pip install "git+https://github.com/AlrForce/ForceCheck.git"
+```
+
 > Requires Python 3.8+
+
+On Windows, if the `!` in a command name is awkward to type in your shell,
+every tool also has a bang-free alias: `fcping`, `fcbgp`, `fctrace`,
+`fchttp`, `fcwhois`, `fccheckall` (and `fcheck` for the menu).
 
 ---
 
