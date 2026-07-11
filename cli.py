@@ -16,10 +16,13 @@ REPO_URL = "https://github.com/AlrForce/ForceCheck"
 
 _W = 54  # عرض داخلی بنر
 
+_TITLE   = f"ForceCheck  v{__version__}"
+_TAGLINE = "network diagnostics · from the world's eyes"
+
 BANNER = (
     f"\n{C}╔{'═' * _W}╗\n"
-    f"║{'ForceCheck  v' + __version__:^{_W}}║\n"
-    f"║{'network diagnostics · from the world\'s eyes':^{_W}}║\n"
+    f"║{_TITLE:^{_W}}║\n"
+    f"║{_TAGLINE:^{_W}}║\n"
     f"╚{'═' * _W}╝{N}"
 )
 
@@ -92,33 +95,50 @@ def _run_uninstall() -> None:
         print(f"\n  {Y}cancelled{N}")
         return
 
-    import shutil, sysconfig
+    import os, shutil, sysconfig
 
     print()
     errors = []
 
-    # حذف پوشه پکیج
+    # اگر با pip نصب شده، پاک‌سازی اصلی از طریق pip انجام می‌شود
+    # (هم پوشه پکیج و هم دستورهای اجرایی ویندوز/لینوکس را برمی‌دارد).
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "uninstall", "-y", "forcecheck"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+    # حذف پوشه پکیج (برای نصب دستی/باقی‌مانده‌ها)
     try:
         site = __import__("site").getsitepackages()[0]
     except Exception:
         site = sysconfig.get_path("purelib")
 
-    pkg_dir = f"{site}/forcecheck"
-    if __import__("os").path.isdir(pkg_dir):
+    pkg_dir = os.path.join(site, "forcecheck")
+    if os.path.isdir(pkg_dir):
         try:
             shutil.rmtree(pkg_dir)
         except Exception as e:
             errors.append(f"package dir: {e}")
 
-    # حذف دستورهای !
+    # حذف دستورها (نصب دستی) — هم نام‌های ! و هم نام‌های جایگزین،
+    # با پسوندهای ویندوزی (.exe / -script.py) و بدون پسوند.
     scripts = sysconfig.get_path("scripts")
-    for cmd in ("ping!", "bgp!", "trace!", "http!", "whois!", "checkall!", "fcheck"):
-        path = f"{scripts}/{cmd}"
-        if __import__("os").path.exists(path):
-            try:
-                __import__("os").remove(path)
-            except Exception as e:
-                errors.append(f"{cmd}: {e}")
+    base_names = (
+        "ping!", "bgp!", "trace!", "http!", "whois!", "checkall!", "fcheck",
+        "fcping", "fcbgp", "fctrace", "fchttp", "fcwhois", "fccheckall",
+    )
+    suffixes = ("", ".exe", "-script.py", ".exe.manifest")
+    for cmd in base_names:
+        for suffix in suffixes:
+            path = os.path.join(scripts, cmd + suffix)
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    errors.append(f"{cmd}{suffix}: {e}")
 
     if errors:
         print(f"  {Y}Uninstall completed with warnings:{N}")
