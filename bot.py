@@ -133,8 +133,8 @@ def _check_ip(ip: str, max_nodes: int = 25) -> dict:
             global_total += 1
             if ok: global_ok += 1
     return {
-        "iran_ok":      iran_ok > 0,
-        "global_ok":    global_ok > 0,
+        "iran_ok":      iran_ok >= 2,
+        "global_ok":    global_ok >= 5,
         "iran_nodes":   iran_ok,
         "global_nodes": global_ok,
         "total_iran":   iran_total,
@@ -185,7 +185,7 @@ def _stream_text(
     else:
         iran_ok   = sum(1 for e in iran_res.values()   if e["ok"])
         global_ok = sum(1 for e in global_res.values() if e["ok"])
-        ir, gl    = iran_ok > 0, global_ok > 0
+        ir, gl    = iran_ok >= 2, global_ok >= 5
         if   ir and     gl:  icon, label = E_OK,   "GLOBALLY ACCESSIBLE"
         elif ir and not gl:  icon, label = E_RED,  "IRAN ACCESS ONLY"
         elif not ir and gl:  icon, label = E_WARN, "RESTRICTED  ·  FILTERED"

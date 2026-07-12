@@ -139,8 +139,8 @@ def run(host: str, max_nodes: int = 220) -> None:
     # ── نتیجه ─────────────────────────────────────────────────────────
     iran_total   = len(iran_nodes)
     global_total = len(global_nodes)
-    iran_reach   = iran_ok > 0
-    global_reach = global_ok > 0
+    iran_reach   = iran_ok >= 2
+    global_reach = global_ok >= 5
 
     print(f"\n  {'═' * _W}")
     print(f"\n  {B}RESULT{N}\n")
