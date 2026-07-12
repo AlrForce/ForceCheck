@@ -12,13 +12,21 @@ def _enable_windows_ansi() -> bool:
         return True
     try:
         import ctypes
-        kernel32 = ctypes.windll.kernel32
-        handle   = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
-        mode     = ctypes.c_uint32()
-        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+        from ctypes import wintypes
+
+        k = ctypes.windll.kernel32
+        # Proper prototypes so handles aren't truncated on 64-bit Python.
+        k.GetStdHandle.restype    = wintypes.HANDLE
+        k.GetStdHandle.argtypes   = [wintypes.DWORD]
+        k.GetConsoleMode.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        k.SetConsoleMode.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+
+        handle = k.GetStdHandle(wintypes.DWORD(-11 & 0xFFFFFFFF))  # STD_OUTPUT_HANDLE
+        mode   = wintypes.DWORD()
+        if not k.GetConsoleMode(handle, ctypes.byref(mode)):
             return False
         # ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+        return bool(k.SetConsoleMode(handle, mode.value | 0x0004))
     except Exception:
         return False
 
