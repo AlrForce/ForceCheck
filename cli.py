@@ -831,7 +831,7 @@ def _run_update() -> None:
     else:
         print(f"\n  {G}Update complete!{N}")
         try:
-            input(f"\n  {DIM}Press Enter to restart ff ...{N}")
+            input(f"\n  {DIM}Press Enter to restart ForceCheck ...{N}")
         except (EOFError, KeyboardInterrupt):
             print()
         os.execv(sys.executable, [sys.executable] + sys.argv)
