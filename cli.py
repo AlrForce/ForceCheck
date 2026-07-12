@@ -216,10 +216,17 @@ def _bot_settings() -> None:
             total_ips = sum(len(u.get("ips", [])) for u in users.values())
             print(f"  {DIM}Users   :{N} {len(users)}  ({total_ips} IPs monitored)")
 
+        allowed = data.get("allowed_ids", [])
+        if allowed:
+            print(f"  {DIM}Access  :{N} {G}Private{N}  ({len(allowed)} allowed IDs)")
+        else:
+            print(f"  {DIM}Access  :{N} {Y}Open to everyone{N}")
+
         print(f"\n  {DIM}{'─' * w}{N}")
         print(f"  {B}1{N}  Set / change bot token")
         print(f"  {B}2{N}  Show setup instructions")
         print(f"  {B}3{N}  Start bot (this terminal)")
+        print(f"  {B}4{N}  Manage allowed chat IDs  {DIM}(private mode){N}")
         print(f"  {DIM}0  Back{N}")
 
         try:
@@ -280,6 +287,85 @@ def _bot_settings() -> None:
                 _run_bot(token)
             except KeyboardInterrupt:
                 print(f"\n  {Y}Bot stopped.{N}")
+
+        elif sub == "4":
+            while True:
+                data    = _load_bs()
+                allowed = data.get("allowed_ids", [])
+
+                print(f"\n  {B}Allowed Chat IDs  (private mode){N}")
+                print(f"  {'─' * w}")
+                if allowed:
+                    print(f"  {G}Private mode: ON{N}\n")
+                    for i, cid in enumerate(allowed, 1):
+                        print(f"    {i}.  {cid}")
+                else:
+                    print(f"  {Y}Private mode: OFF{N}  —  open to everyone")
+
+                print(f"\n  {DIM}{'─' * w}{N}")
+                print(f"  {B}1{N}  Add a chat ID")
+                if allowed:
+                    print(f"  {B}2{N}  Remove a chat ID")
+                    print(f"  {B}3{N}  Clear all  (disable private mode)")
+                print(f"  {DIM}0  Back{N}")
+
+                try:
+                    sub2 = input(f"\n  {C}Select{N}: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print()
+                    break
+
+                if sub2 == "0":
+                    break
+
+                elif sub2 == "1":
+                    print(f"\n  {DIM}Find your chat ID by messaging @userinfobot on Telegram.{N}")
+                    try:
+                        new_id = input(f"  Chat ID: ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print()
+                        continue
+                    try:
+                        new_id_int = int(new_id)
+                    except ValueError:
+                        print(f"\n  {R}Invalid — must be a number.{N}")
+                        continue
+                    ids = data.setdefault("allowed_ids", [])
+                    if new_id_int in ids:
+                        print(f"\n  {Y}Already in list.{N}")
+                    else:
+                        ids.append(new_id_int)
+                        _save_bs(data)
+                        print(f"\n  {G}Added: {new_id_int}{N}")
+
+                elif sub2 == "2" and allowed:
+                    print(f"\n  Enter the number to remove:")
+                    for i, cid in enumerate(allowed, 1):
+                        print(f"    {i}.  {cid}")
+                    try:
+                        rm = input(f"  Number: ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print()
+                        continue
+                    try:
+                        idx = int(rm) - 1
+                        if 0 <= idx < len(allowed):
+                            removed = allowed.pop(idx)
+                            data["allowed_ids"] = allowed
+                            _save_bs(data)
+                            print(f"\n  {G}Removed: {removed}{N}")
+                        else:
+                            print(f"\n  {R}Invalid number.{N}")
+                    except ValueError:
+                        print(f"\n  {R}Invalid input.{N}")
+
+                elif sub2 == "3" and allowed:
+                    data["allowed_ids"] = []
+                    _save_bs(data)
+                    print(f"\n  {G}Cleared. Bot is now open to everyone.{N}")
+
+                else:
+                    print(f"\n  {R}Invalid choice.{N}")
 
         else:
             print(f"\n  {R}Invalid choice.{N}")

@@ -74,6 +74,11 @@ def _get_user(uid: str) -> tuple:
     return store, user
 
 
+def _is_allowed(user_id: int) -> bool:
+    allowed = _load().get("allowed_ids", [])
+    return not allowed or user_id in allowed
+
+
 # ── check-host.net ────────────────────────────────────────────────────────────
 
 def _is_iran(info: list) -> bool:
@@ -492,6 +497,13 @@ def _build_app(token: str):
     async def cmd_start(
         update: Update, ctx: ContextTypes.DEFAULT_TYPE
     ) -> None:
+        if not _is_allowed(update.effective_user.id):
+            await update.message.reply_html(
+                f"{E_ERR}  <b>Access Denied</b>\n\n"
+                f"<i>This bot is private.\n"
+                f"Contact the owner for access.</i>"
+            )
+            return
         uid = str(update.effective_user.id)
         store, _ = _get_user(uid)
         _save(store)
@@ -503,6 +515,8 @@ def _build_app(token: str):
     async def handle_text(
         update: Update, ctx: ContextTypes.DEFAULT_TYPE
     ) -> None:
+        if not _is_allowed(update.effective_user.id):
+            return
         uid   = str(update.effective_user.id)
         text  = update.message.text.strip()
         state = ctx.user_data.get("awaiting")
@@ -623,6 +637,9 @@ def _build_app(token: str):
         update: Update, ctx: ContextTypes.DEFAULT_TYPE
     ) -> None:
         query = update.callback_query
+        if not _is_allowed(update.effective_user.id):
+            await query.answer("⛔ Access denied.", show_alert=True)
+            return
         await query.answer()
         uid  = str(update.effective_user.id)
         data = query.data
