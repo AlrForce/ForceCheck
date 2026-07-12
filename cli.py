@@ -16,6 +16,25 @@ REPO_URL = "https://github.com/AlrForce/ForceCheck"
 
 _W = 54  # عرض داخلی بنر
 
+_latest_version: str = ""  # filled by background fetch
+
+
+def _start_version_check() -> None:
+    import threading, urllib.request, re as _re
+
+    def _fetch() -> None:
+        global _latest_version
+        try:
+            url  = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master/__init__.py"
+            resp = urllib.request.urlopen(url, timeout=5)
+            m    = _re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', resp.read().decode())
+            if m:
+                _latest_version = m.group(1)
+        except Exception:
+            pass
+
+    threading.Thread(target=_fetch, daemon=True).start()
+
 BANNER = (
     f"\n{C}╔{'═' * _W}╗\n"
     f"║{'ForceCheck  v' + __version__:^{_W}}║\n"
@@ -40,7 +59,13 @@ def _menu() -> str:
     for i, (cmd, desc, _, _n) in enumerate(_ITEMS, 1):
         lines.append(f"  {B}{i}{N}  {cmd:<12}{DIM}{desc}{N}")
     lines.append(f"  {DIM}{'─' * _W}{N}")
-    lines.append(f"  {G}u{N}  {'update':<12}{DIM}download latest version from GitHub{N}")
+    if _latest_version and _latest_version != __version__:
+        _udesc = f"{G}new update available  {DIM}({__version__} → {_latest_version}){N}"
+    elif _latest_version:
+        _udesc = f"{DIM}Up to date  (v{__version__}){N}"
+    else:
+        _udesc = f"{DIM}download latest version from GitHub{N}"
+    lines.append(f"  {G}u{N}  {'update':<12}{_udesc}")
     lines.append(f"  {C}a{N}  {'about':<12}{DIM}about & support{N}")
     lines.append(f"  {R}x{N}  {'uninstall':<12}{DIM}remove ForceCheck from this system{N}")
     lines.append(f"  {B}h{N}  {'help':<12}{DIM}guide & usage reference{N}")
@@ -817,6 +842,7 @@ def _run(choice: int) -> None:
 
 def _loop() -> None:
     print(BANNER)
+    _start_version_check()
     ensure_deps()
 
     while True:
