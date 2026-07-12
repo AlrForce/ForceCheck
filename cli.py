@@ -43,12 +43,12 @@ BANNER = (
 )
 
 _ITEMS = [
+    ("info!",     "IP / ASN WHOIS via RDAP",         "IP, hostname, or ASN", None),
     ("ping!",     "distributed ping",                "Host or IP",           None),
     ("tcp!",      "distributed TCP port check",      "Host or IP",           None),
-    ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",   None),
-    ("trace!",    "distributed traceroute",          "Host or IP",           None),
     ("http!",     "HTTP check from global nodes",    "URL or host",          None),
-    ("info!",     "IP / ASN WHOIS via RDAP",         "IP, hostname, or ASN", None),
+    ("trace!",    "distributed traceroute",          "Host or IP",           None),
+    ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",   None),
     ("domain!",   "domain availability & WHOIS",     "Domain name",          None),
     ("checkall!", "run all checks in parallel",      "Host or IP",           None),
     ("bot!",      "Telegram monitor bot",            None,                   None),
@@ -623,27 +623,27 @@ def _show_help() -> None:
     print(ln)
 
     cmds = [
+        ("info!",
+         "IP & ASN lookup via RDAP  (country, ISP, ASN, timezone).",
+         ["info! 1.2.3.4", "info! AS15169", "info! google.com"]),
         ("ping!",
          "Distributed ping from global nodes.",
          ["ping! 1.2.3.4", "ping! google.com"]),
         ("tcp!",
          "Distributed TCP port check — tests if a port is open from global nodes.",
          ["tcp! 1.2.3.4 80", "tcp! example.com 443", "tcp! 1.2.3.4 22"]),
-        ("bgp!",
-         "BGP route lookup and ASN information.",
-         ["bgp! 1.2.3.4", "bgp! AS12880"]),
+        ("http!",
+         "HTTP response check from global nodes.",
+         ["http! example.com", "http! https://example.com"]),
         ("trace!",
          "Distributed traceroute — three modes:",
          ["trace! 1.2.3.4  →  choose  Iran / Global / World",
           "trace! 1.2.3.4 --iran   (4 nodes, Iran only)",
           "trace! 1.2.3.4 --global (4 international nodes)",
           "trace! 1.2.3.4 --world  (8 worldwide nodes)"]),
-        ("http!",
-         "HTTP response check from global nodes.",
-         ["http! example.com", "http! https://example.com"]),
-        ("info!",
-         "IP & ASN lookup via RDAP  (country, ISP, ASN, timezone).",
-         ["info! 1.2.3.4", "info! AS15169", "info! google.com"]),
+        ("bgp!",
+         "BGP route lookup and ASN information.",
+         ["bgp! 1.2.3.4", "bgp! AS12880"]),
         ("domain!",
          "Domain availability & WHOIS registration info.",
          ["domain! example.com"]),
@@ -828,7 +828,7 @@ def _run(choice: int) -> None:
 
     print(f"\n  {B}{cmd_name}{N}")
 
-    target = _ask_host(target_label) if choice in (1, 2, 5) else _ask(target_label)
+    target = _ask_host(target_label) if choice in (2, 3, 4) else _ask(target_label)
     if not target:
         return
 
@@ -837,9 +837,16 @@ def _run(choice: int) -> None:
 
     try:
         if choice == 1:
+            from .ansinfo import _ASN_RE, run_ip, run_asn
+            m = _ASN_RE.match(target)
+            if m:
+                run_asn(int(m.group(1)))
+            else:
+                run_ip(target)
+        elif choice == 2:
             from .ping import run
             run(target, 220)
-        elif choice == 2:
+        elif choice == 3:
             print(f"  {DIM}Valid range: 1 – 65535{N}")
             print(f"  {DIM}Common: 22 SSH · 80 HTTP · 443 HTTPS · 3306 MySQL · 5432 PG · 6379 Redis{N}")
             try:
@@ -859,26 +866,19 @@ def _run(choice: int) -> None:
             print()
             from .tcp import run
             run(target, port)
-        elif choice == 3:
-            from .bgp import run
-            run(target)
         elif choice == 4:
+            from .http import run
+            run(target, 220)
+        elif choice == 5:
             from .trace import run, ask_mode
             mode = ask_mode()
             if not mode:
                 return
             print()
             run(target, mode)
-        elif choice == 5:
-            from .http import run
-            run(target, 220)
         elif choice == 6:
-            from .ansinfo import _ASN_RE, run_ip, run_asn
-            m = _ASN_RE.match(target)
-            if m:
-                run_asn(int(m.group(1)))
-            else:
-                run_ip(target)
+            from .bgp import run
+            run(target)
         elif choice == 7:
             from .whois import run
             run(target)
