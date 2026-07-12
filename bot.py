@@ -357,7 +357,7 @@ def _about_text() -> str:
 
         f"{_HR}\n\n"
 
-        f"  {E_SAT}  <b>Telegram</b>    <code>@ThisChannelisX</code>\n"
+        f"  {E_SAT}  <b>Telegram</b>    @ThisChannelisX\n"
         f"  {E_GLOBE}  <b>GitHub</b>      <code>github.com/AlrForce</code>\n\n"
 
         f"{_HR}\n\n"
@@ -368,7 +368,7 @@ def _about_text() -> str:
         f"<code>0x5a8AB785F17006495323F00a62473e638ebE008b</code>\n\n"
 
         f"{_HR}\n"
-        f"{E_RELOAD}  <i>Powered by ForceCheck  ·  check-host.net</i>"
+        f"{E_RELOAD}  <i>Powered by AlrForce</i>"
     )
 
 
