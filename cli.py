@@ -26,7 +26,7 @@ BANNER = (
 _ITEMS = [
     ("ping!",     "distributed ping",                "Host or IP",           None),
     ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",   None),
-    ("trace!",    "distributed traceroute",          "Host or IP",           "nodes"),
+    ("trace!",    "distributed traceroute",          "Host or IP",           None),
     ("http!",     "HTTP check from global nodes",    "URL or host",          None),
     ("info!",     "IP / ASN WHOIS via RDAP",         "IP, hostname, or ASN", None),
     ("domain!",   "domain availability & WHOIS",     "Domain name",          None),
@@ -474,8 +474,12 @@ def _run(choice: int) -> None:
             from .bgp import run
             run(target)
         elif choice == 3:
-            from .trace import run
-            run(target, nodes)
+            from .trace import run, ask_mode
+            mode = ask_mode()
+            if not mode:
+                return
+            print()
+            run(target, mode)
         elif choice == 4:
             from .http import run
             run(target, 220)

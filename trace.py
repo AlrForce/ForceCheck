@@ -2,11 +2,12 @@
 trace — distributed traceroute via check-host.net
 
 Usage:
-  trace! <host> [-n NODES]
+  trace! <host> [--iran | --global | --world]
 """
 
 import sys
 import time
+import random
 import argparse
 
 from .colors import G, R, Y, C, B, DIM, N
@@ -14,40 +15,99 @@ from ._deps import ensure_deps
 
 CHECK_HOST = "https://check-host.net"
 
+_MODES = {
+    "iran":   {"label": "Iran Trace",   "count": 4},
+    "global": {"label": "Global Trace", "count": 4},
+    "world":  {"label": "World Trace",  "count": 8},
+}
 
-def run(host: str, max_nodes: int = 5) -> None:
+
+def _is_iran(info: list) -> bool:
+    return "iran" in (info[1] if len(info) > 1 else "").lower()
+
+
+def _get_filtered_nodes(region: str, count: int) -> list:
     import requests
+    try:
+        r = requests.get(
+            f"{CHECK_HOST}/nodes/hosts",
+            headers={"Accept": "application/json"},
+            timeout=10,
+        )
+        r.raise_for_status()
+        all_nodes = r.json()
+    except Exception:
+        return []
+
+    if region == "iran":
+        filtered = [nid for nid, info in all_nodes.items() if _is_iran(info)]
+    elif region == "global":
+        filtered = [nid for nid, info in all_nodes.items() if not _is_iran(info)]
+    else:
+        filtered = list(all_nodes.keys())
+
+    random.shuffle(filtered)
+    return filtered[:count]
+
+
+def ask_mode() -> str:
+    print(f"\n  {B}1{N}  🇮🇷  Iran Trace     {DIM}· 4 nodes from Iran{N}")
+    print(f"  {B}2{N}  🌐  Global Trace   {DIM}· 4 international nodes{N}")
+    print(f"  {B}3{N}  🗺   World Trace    {DIM}· 8 worldwide nodes{N}")
+    try:
+        raw = input(f"\n  {C}Mode:{N} ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return ""
+    return {"1": "iran", "2": "global", "3": "world"}.get(raw, "")
+
+
+def run(host: str, mode: str = "world") -> None:
+    import requests
+
+    cfg   = _MODES.get(mode, _MODES["world"])
+    label = cfg["label"]
+    count = cfg["count"]
+
+    print(f"\n  {DIM}Fetching {label} nodes ...{N}", end="", flush=True)
+    node_list = _get_filtered_nodes(mode, count)
+
+    if not node_list:
+        print(f"\r  {R}Failed to fetch node list from check-host.net{N}          ")
+        return
+
+    print(f"\r  {DIM}Using {len(node_list)} nodes  [{label}]{N}          ")
+
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
 
     try:
-        r = sess.get(
-            f"{CHECK_HOST}/check-traceroute",
-            params={"host": host, "max_nodes": max_nodes},
-            timeout=15,
-        )
+        params = [("host", host)] + [("node", n) for n in node_list]
+        r = sess.get(f"{CHECK_HOST}/check-traceroute", params=params, timeout=15)
         r.raise_for_status()
     except requests.exceptions.HTTPError as e:
         sys.exit(f"{R}HTTP error:{N} {e}")
     except requests.exceptions.ConnectionError:
         sys.exit(f"{R}Cannot connect to check-host.net{N}")
 
-    data = r.json()
+    data       = r.json()
     request_id = data.get("request_id", "")
     nodes      = data.get("nodes", {})
 
     if not nodes:
         sys.exit(f"{R}No nodes returned — check-host.net may have rejected the host.{N}")
 
-    print(f"\n{C}TRACEROUTE {host}  —  check-host.net{N}")
+    print(f"\n{C}TRACEROUTE {host}  —  {label}{N}")
     print(f"{DIM}{len(nodes)} probe nodes  |  {CHECK_HOST}/check-report/{request_id}{N}\n")
 
-    # traceroute نیاز به زمان بیشتری دارد
     results: dict = {}
     for _ in range(20):
         time.sleep(3)
-        r2 = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15)
-        results = r2.json()
+        try:
+            r2      = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15)
+            results = r2.json()
+        except Exception:
+            continue
         done = sum(1 for v in results.values() if v is not None)
         print(f"\r  waiting for results ... {done}/{len(nodes)}", end="", flush=True)
         if done >= len(nodes):
@@ -72,13 +132,10 @@ def run(host: str, max_nodes: int = 5) -> None:
             continue
 
         for ttl, hop in enumerate(hops, 1):
-            # هر hop یک لیست از probe هاست: [{"host":..,"name":..,"rtt":..}, ...]
-            # یا None در صورت timeout
             if not hop:
                 print(f"    {DIM}{ttl:>2}{N}  {'*':<55}  {R}*{N}")
                 continue
 
-            # اگر hop یه لیست از dict باشه (فرمت جدید check-host.net)
             if isinstance(hop, list):
                 probe = hop[0] if hop else None
             elif isinstance(hop, dict):
@@ -91,14 +148,13 @@ def run(host: str, max_nodes: int = 5) -> None:
                 continue
 
             if isinstance(probe, dict):
-                ip      = probe.get("host") or "*"
-                hostname= probe.get("name") or ""
-                rtt_raw = probe.get("rtt")
+                ip       = probe.get("host") or "*"
+                hostname = probe.get("name") or ""
+                rtt_raw  = probe.get("rtt")
             else:
-                # فرمت قدیمی: [ttl, ip, hostname, rtt]
-                ip      = probe[1] if len(probe) > 1 and probe[1] else "*"
-                hostname= probe[2] if len(probe) > 2 and probe[2] else ""
-                rtt_raw = probe[3] if len(probe) > 3 else None
+                ip       = probe[1] if len(probe) > 1 and probe[1] else "*"
+                hostname = probe[2] if len(probe) > 2 and probe[2] else ""
+                rtt_raw  = probe[3] if len(probe) > 3 else None
 
             rtt_str = f"{G}{rtt_raw * 1000:.1f} ms{N}" if rtt_raw is not None else f"{R}*{N}"
             addr    = f"{ip}  {DIM}({hostname}){N}" if hostname and hostname != ip else ip
@@ -111,24 +167,39 @@ def run(host: str, max_nodes: int = 5) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(
         prog="trace!",
-        description="Distributed traceroute from multiple global nodes via check-host.net",
+        description="Distributed traceroute from multiple nodes via check-host.net",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Examples:\n  trace! 8.8.8.8\n  trace! google.com -n 5",
+        epilog=(
+            "Examples:\n"
+            "  trace! 8.8.8.8            (interactive mode selection)\n"
+            "  trace! 8.8.8.8 --iran\n"
+            "  trace! 8.8.8.8 --global\n"
+            "  trace! 8.8.8.8 --world"
+        ),
     )
     ap.add_argument("host", help="IP address or hostname")
-    ap.add_argument(
-        "-n", "--nodes",
-        type=int, default=5, metavar="N",
-        help="number of probe nodes, 1-220 (default: 5)",
-    )
+
+    mg = ap.add_mutually_exclusive_group()
+    mg.add_argument("--iran",   action="store_true", help="4 nodes from Iran")
+    mg.add_argument("--global", action="store_true", dest="global_",
+                    help="4 international nodes")
+    mg.add_argument("--world",  action="store_true", help="8 worldwide nodes")
 
     args = ap.parse_args()
     ensure_deps()
 
-    if not 1 <= args.nodes <= 220:
-        ap.error("--nodes must be between 1 and 220")
+    if args.iran:
+        mode = "iran"
+    elif args.global_:
+        mode = "global"
+    elif args.world:
+        mode = "world"
+    else:
+        mode = ask_mode()
+        if not mode:
+            return
 
     try:
-        run(args.host, args.nodes)
+        run(args.host, mode)
     except KeyboardInterrupt:
         print(f"\n{Y}aborted{N}")
