@@ -348,6 +348,30 @@ def _help_text() -> str:
     )
 
 
+def _about_text() -> str:
+    return (
+        f"{E_GEM}  <b>About ForceCheck</b>\n"
+        f"{_HR}\n\n"
+
+        f"  <i>Thanks for supporting ForceProjects!</i>\n\n"
+
+        f"{_HR}\n\n"
+
+        f"  {E_SAT}  <b>Telegram</b>    <code>@ThisChannelisX</code>\n"
+        f"  {E_GLOBE}  <b>GitHub</b>      <code>github.com/AlrForce</code>\n\n"
+
+        f"{_HR}\n\n"
+
+        f"  {E_GEM}  <b>Support the Project</b>\n\n"
+
+        f"  {E_OK}  <b>Wallet Address</b>  ·  <i>BEP20 — USDT</i>\n"
+        f"<code>0x5a8AB785F17006495323F00a62473e638ebE008b</code>\n\n"
+
+        f"{_HR}\n"
+        f"{E_RELOAD}  <i>Powered by ForceCheck  ·  check-host.net</i>"
+    )
+
+
 # ── bot application ───────────────────────────────────────────────────────────
 
 def _build_app(token: str):
@@ -378,7 +402,8 @@ def _build_app(token: str):
             [Btn("🗑  Remove IP",           callback_data="remove"),
              Btn("⏱  Set Interval",        callback_data="interval")],
             [Btn(toggle[0],                callback_data=toggle[1])],
-            [Btn("❓  Guide & Help",        callback_data="help")],
+            [Btn("❓  Guide & Help",        callback_data="help"),
+             Btn("ℹ️  About",              callback_data="about")],
         ])
 
     def _kb_check_select(ips: list) -> Kbd:
@@ -607,6 +632,15 @@ def _build_app(token: str):
                 _help_text(),
                 parse_mode="HTML",
                 reply_markup=_kb_back(),
+            )
+
+        # ── about ─────────────────────────────────
+        elif data == "about":
+            await query.edit_message_text(
+                _about_text(),
+                parse_mode="HTML",
+                reply_markup=_kb_back(),
+            )
             )
 
         # ── check — show IP selection screen ──────
