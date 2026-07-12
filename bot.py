@@ -641,7 +641,6 @@ def _build_app(token: str):
                 parse_mode="HTML",
                 reply_markup=_kb_back(),
             )
-            )
 
         # ── check — show IP selection screen ──────
         elif data == "check":
