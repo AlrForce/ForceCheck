@@ -22,8 +22,18 @@ _MODES = {
 }
 
 
-def _is_iran(info: list) -> bool:
-    return "iran" in (info[1] if len(info) > 1 else "").lower()
+def _country_of(info) -> str:
+    """Extract country string from node info — handles list or dict format."""
+    if isinstance(info, (list, tuple)):
+        return info[1] if len(info) > 1 else ""
+    if isinstance(info, dict):
+        return (info.get("1") or info.get("country_name")
+                or info.get("country") or info.get("location", ""))
+    return str(info)
+
+
+def _is_iran(info) -> bool:
+    return "iran" in _country_of(info).lower()
 
 
 def _get_filtered_nodes(region: str, count: int) -> list:
@@ -35,7 +45,9 @@ def _get_filtered_nodes(region: str, count: int) -> list:
             timeout=10,
         )
         r.raise_for_status()
-        all_nodes = r.json()
+        data = r.json()
+        # some API responses wrap nodes under a "nodes" key
+        all_nodes = data.get("nodes", data) if isinstance(data, dict) else {}
     except Exception:
         return []
 
