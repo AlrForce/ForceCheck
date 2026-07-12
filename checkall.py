@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .colors import G, R, Y, C, B, DIM, N
 from ._deps import ensure_deps
-from .whois import _resolve_to_ip, _entity_name
+from .ansinfo import _resolve_to_ip, _entity_name
 
 CHECK_HOST = "https://check-host.net"
 RDAP_IP    = "https://rdap.org/ip/{}"

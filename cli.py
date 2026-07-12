@@ -227,7 +227,7 @@ def _run_update() -> None:
     raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
     pyfiles  = [
         "__init__.py", "bgp.py", "checkall.py", "cli.py",
-        "colors.py", "_deps.py", "domain.py", "http.py", "ping.py",
+        "colors.py", "_deps.py", "ansinfo.py", "http.py", "ping.py",
         "trace.py", "whois.py",
     ]
 
@@ -280,14 +280,14 @@ def _run(choice: int) -> None:
             from .http import run
             run(target, 220)
         elif choice == 5:
-            from .whois import _ASN_RE, run_ip, run_asn
+            from .ansinfo import _ASN_RE, run_ip, run_asn
             m = _ASN_RE.match(target)
             if m:
                 run_asn(int(m.group(1)))
             else:
                 run_ip(target)
         elif choice == 6:
-            from .domain import run
+            from .whois import run
             run(target)
         elif choice == 7:
             from .checkall import run

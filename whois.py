@@ -1,229 +1,162 @@
 """
-whois — IP & ASN lookup via RDAP
+domain — domain availability and WHOIS lookup via RDAP
 
 Usage:
-  info! <ip | hostname | prefix | asn>
+  domain! <domain>
 """
 
-import re
 import sys
 import socket
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .colors import G, R, Y, C, B, DIM, N
 from ._deps import ensure_deps
 
-RDAP_IP  = "https://rdap.org/ip/{}"
-RDAP_ASN = "https://rdap.org/autnum/{}"
-IPINFO   = "https://ipinfo.io/{}/json"
+RDAP = "https://rdap.org/domain/{}"
 
-_ASN_RE = re.compile(r"^(?:AS)?(\d+)$", re.I)
-
-
-def _is_ip(s: str) -> bool:
-    for family in (socket.AF_INET, socket.AF_INET6):
-        try:
-            socket.inet_pton(family, s)
-            return True
-        except OSError:
-            continue
-    return False
-
-
-def _resolve_to_ip(target: str) -> str:
-    bare = target.split("/")[0]
-    if _is_ip(bare):
-        return bare
-    try:
-        return socket.gethostbyname(bare)
-    except socket.gaierror:
-        sys.exit(f"{R}Cannot resolve: {bare}{N}")
-
-
-def _entity_name(entity: dict) -> str:
-    vcard_fields = entity.get("vcardArray", [None, []])[1]
-    for field in vcard_fields:
-        if field[0] == "fn" and field[3]:
-            return field[3]
-    return entity.get("handle", "—")
-
-
-def _fmt_date(s: str) -> str:
-    return s[:10] if s else "—"
+_TLDS = [
+    "com", "net", "org", "io", "co", "app", "dev",
+    "ai", "me", "info", "biz", "online", "site", "store", "shop",
+]
 
 
 def _row(label: str, value: str) -> None:
     print(f"  {DIM}{label:<14}{N}{value}")
 
 
-def run_ip(target: str) -> None:
+def _rdap(sess, domain: str) -> tuple:
+    """('registered'|'available'|'unknown', data)"""
     import requests
-
-    ip = _resolve_to_ip(target)
-    if ip != target.split("/")[0]:
-        print(f"\n  {DIM}resolved {target} → {ip}{N}")
-
     try:
-        r = requests.get(
-            RDAP_IP.format(ip),
-            timeout=15,
-            headers={"Accept": "application/rdap+json"},
-        )
-        r.raise_for_status()
-    except requests.exceptions.ConnectionError:
-        sys.exit(f"{R}Cannot connect to rdap.org{N}")
-    except requests.exceptions.HTTPError as e:
-        sys.exit(f"{R}RDAP error:{N} {e}")
-
-    d = r.json()
-
-    handle  = d.get("handle", "—")
-    name    = d.get("name", "—")
-    country = d.get("country", "—")
-    start   = d.get("startAddress", "—")
-    end     = d.get("endAddress", "—")
-
-    cidrs = d.get("cidr0_cidrs", [])
-    cidr_str = ", ".join(
-        f"{c.get('v4prefix', c.get('v6prefix', '?'))}/{c.get('length', '?')}"
-        for c in cidrs
-    ) or "—"
-
-    org = "—"
-    for ent in d.get("entities", []):
-        roles = ent.get("roles", [])
-        if "registrant" in roles or "administrative" in roles:
-            org = _entity_name(ent)
-            # زیر-entity برای سازمان اصلی
-            for sub in ent.get("entities", []):
-                if "registrant" in sub.get("roles", []):
-                    org = _entity_name(sub)
-            break
-
-    registered = updated = "—"
-    for ev in d.get("events", []):
-        action = ev.get("eventAction", "")
-        if action == "registration":
-            registered = _fmt_date(ev.get("eventDate", ""))
-        elif action == "last changed":
-            updated = _fmt_date(ev.get("eventDate", ""))
-
-    links = d.get("links", [])
-    source = links[0].get("href", "").split("/")[2] if links else d.get("port43", "—")
-
-    # geo از ipinfo.io
-    geo = {}
-    try:
-        geo = requests.get(IPINFO.format(ip), timeout=8).json()
+        r = sess.get(RDAP.format(domain), timeout=8,
+                     headers={"Accept": "application/rdap+json"})
+        if r.status_code == 200:
+            return "registered", r.json()
+        if r.status_code == 404:
+            return "available", {}
     except Exception:
         pass
-
-    print(f"\n{C}INFO  {ip}{N}\n")
-    _row("Network",      f"{handle}  {DIM}({name}){N}")
-    _row("CIDR",         cidr_str)
-    _row("Range",        f"{start}  —  {end}")
-    _row("Organization", org)
-    _row("Country",      country)
-    _row("Registered",   registered)
-    _row("Updated",      updated)
-    _row("Source",       source)
-
-    if geo:
-        print(f"\n  {B}── IP Geolocation ─────────────────────────{N}\n")
-        city     = geo.get("city", "")
-        region   = geo.get("region", "")
-        country2 = geo.get("country", "")
-        location = ", ".join(filter(None, [city, region, country2]))
-        if location:
-            _row("Location",  location)
-        if geo.get("org"):
-            _row("ISP / ASN", geo["org"])
-        if geo.get("timezone"):
-            _row("Timezone",  geo["timezone"])
-        if geo.get("loc"):
-            _row("Coords",    geo["loc"])
-
-    print()
-
-
-def run_asn(asn_num: int) -> None:
-    import requests
-
+    # fallback: DNS
     try:
-        r = requests.get(
-            RDAP_ASN.format(asn_num),
-            timeout=15,
-            headers={"Accept": "application/rdap+json"},
-        )
-        r.raise_for_status()
-    except requests.exceptions.ConnectionError:
-        sys.exit(f"{R}Cannot connect to rdap.org{N}")
-    except requests.exceptions.HTTPError as e:
-        sys.exit(f"{R}RDAP error:{N} {e}")
+        socket.getaddrinfo(domain, None)
+        return "registered", {}
+    except socket.gaierror:
+        return "available", {}
 
-    d = r.json()
 
-    handle = d.get("handle", f"AS{asn_num}")
-    name   = d.get("name", "—")
-    start  = d.get("startAutnum", asn_num)
-    end    = d.get("endAutnum",   asn_num)
+def _check_tld(sess, name: str, tld: str) -> tuple:
+    domain = f"{name}.{tld}"
+    status, _ = _rdap(sess, domain)
+    return domain, status
 
-    org = country = "—"
-    for ent in d.get("entities", []):
-        roles = ent.get("roles", [])
-        if any(role in roles for role in ("registrant", "administrative")):
-            org = _entity_name(ent)
-        c = ent.get("country", "")
-        if c:
-            country = c
 
-    registered = updated = "—"
-    for ev in d.get("events", []):
-        action = ev.get("eventAction", "")
-        if action == "registration":
-            registered = _fmt_date(ev.get("eventDate", ""))
-        elif action == "last changed":
-            updated = _fmt_date(ev.get("eventDate", ""))
+def _fmt_date(s: str) -> str:
+    return s[:10] if s else "—"
 
-    asn_range = f"{start}" if start == end else f"{start} — {end}"
 
-    print(f"\n{C}WHOIS AS{asn_num}{N}\n")
-    _row("ASN",          handle)
-    _row("Name",         name)
-    _row("Organization", org)
-    _row("Country",      country)
-    _row("ASN Range",    asn_range)
-    _row("Registered",   registered)
-    _row("Updated",      updated)
+def _entity_name(entity: dict) -> str:
+    vcard = entity.get("vcardArray", [None, []])[1]
+    for field in vcard:
+        if field[0] == "fn" and field[3]:
+            return str(field[3])
+    return entity.get("handle", "—")
+
+
+def run(domain: str) -> None:
+    import requests
+    sess = requests.Session()
+
+    domain = domain.lower().strip()
+    if domain.startswith("www."):
+        domain = domain[4:]
+    if "." not in domain:
+        domain = f"{domain}.com"
+
+    name        = domain.split(".")[0]
+    current_tld = ".".join(domain.split(".")[1:])
+
+    print(f"\n{C}DOMAIN  {domain}  —  rdap.org{N}\n")
+
+    status, data = _rdap(sess, domain)
+
+    w = 36
+    if status == "available":
+        print(f"  {G}╔{'═' * w}╗{N}")
+        print(f"  {G}║{'✓  Available for Registration':^{w}}║{N}")
+        print(f"  {G}╚{'═' * w}╝{N}\n")
+    else:
+        print(f"  {R}╔{'═' * w}╗{N}")
+        print(f"  {R}║{'✗  Registered':^{w}}║{N}")
+        print(f"  {R}╚{'═' * w}╝{N}\n")
+
+        if data:
+            registrar = "—"
+            for ent in data.get("entities", []):
+                if "registrar" in ent.get("roles", []):
+                    registrar = _entity_name(ent)
+                    break
+
+            created = expires = "—"
+            for ev in data.get("events", []):
+                action = ev.get("eventAction", "")
+                if action == "registration":
+                    created = _fmt_date(ev.get("eventDate", ""))
+                elif action == "expiration":
+                    expires = _fmt_date(ev.get("eventDate", ""))
+
+            statuses = data.get("status", [])
+            ns_list  = [ns.get("ldhName", "") for ns in data.get("nameservers", [])]
+
+            _row("Registrar",   registrar)
+            _row("Status",      ", ".join(statuses) if statuses else "—")
+            _row("Created",     created)
+            _row("Expires",     f"{Y}{expires}{N}" if expires != "—" else "—")
+            if ns_list:
+                _row("Nameservers", ns_list[0])
+                for ns in ns_list[1:4]:
+                    _row("", ns)
+            print()
+
+    # ── TLD suggestions ────────────────────────────────────────────────
+    check_tlds = [t for t in _TLDS if t != current_tld]
+
+    print(f"  {B}── Alternative TLDs {'─' * 28}{N}\n")
+
+    tld_results = {}
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {pool.submit(_check_tld, sess, name, t): t for t in check_tlds}
+        for fut in as_completed(futures):
+            dom, st = fut.result()
+            tld_results[dom] = st
+
+    for tld in check_tlds:
+        dom = f"{name}.{tld}"
+        st  = tld_results.get(dom, "unknown")
+        if st == "available":
+            tag = f"{G}✓  available{N}"
+        elif st == "registered":
+            tag = f"{R}✗  registered{N}"
+        else:
+            tag = f"{Y}?  unknown{N}"
+        print(f"  {DIM}{dom:<28}{N}  {tag}")
+
     print()
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        prog="info!",
-        description="IP and ASN WHOIS lookup via RDAP",
+        prog="domain!",
+        description="Domain availability check and WHOIS via RDAP",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  info! 8.8.8.8\n"
-            "  info! google.com\n"
-            "  info! 8.8.8.0/24\n"
-            "  info! AS15169"
-        ),
+        epilog="Examples:\n  domain! example.com\n  domain! mysite\n  domain! coolapp.io",
     )
-    ap.add_argument(
-        "target",
-        help="IP address, hostname, prefix (x.x.x.x/yy), or ASN (AS15169 or 15169)",
-    )
+    ap.add_argument("domain", help="Domain name to check")
 
     args = ap.parse_args()
     ensure_deps()
 
-    m = _ASN_RE.match(args.target)
     try:
-        if m:
-            run_asn(int(m.group(1)))
-        else:
-            run_ip(args.target)
+        run(args.domain)
     except KeyboardInterrupt:
         print(f"\n{Y}aborted{N}")
