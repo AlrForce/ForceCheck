@@ -24,11 +24,19 @@ No account. No API key. One install.
 curl -sSL https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.sh | bash
 ```
 
-**Windows (PowerShell)**
+**Windows — PowerShell**
 
 ```powershell
 irm https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.ps1 | iex
 ```
+
+**Windows — Command Prompt (cmd)**
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.ps1 | iex"
+```
+
+> `irm` only exists in PowerShell. In cmd, use the second command above (it launches PowerShell for you).
 
 > Requires Python 3.8+
 
