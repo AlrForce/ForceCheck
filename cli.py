@@ -45,11 +45,57 @@ def _menu() -> str:
     return "\n".join(lines)
 
 
+def _local_ips() -> list:
+    import socket
+    seen, result = set(), []
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if not ip.startswith("127.") and not ip.startswith("169.254."):
+            seen.add(ip)
+            result.append(ip)
+    except Exception:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            if info[0] != socket.AF_INET:
+                continue
+            ip = info[4][0]
+            if ip in seen or ip.startswith("127.") or ip.startswith("169.254."):
+                continue
+            seen.add(ip)
+            result.append(ip)
+    except Exception:
+        pass
+    return result[:5]
+
+
 def _ask(label: str, default: str = "") -> str:
     hint = f" [{default}]" if default else ""
     try:
         val = input(f"\n    {DIM}{label}{hint}:{N} ").strip()
         return val or default
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return ""
+
+
+def _ask_host(label: str) -> str:
+    ips = _local_ips()
+    if ips:
+        print(f"\n    {DIM}Your IPs:{N}")
+        for i, ip in enumerate(ips, 1):
+            tag = f"  {DIM}← primary{N}" if i == 1 else ""
+            print(f"      {C}{i}{N}  {ip}{tag}")
+    try:
+        val = input(f"\n    {DIM}{label}:{N} ").strip()
+        if val.isdigit():
+            idx = int(val) - 1
+            if 0 <= idx < len(ips):
+                return ips[idx]
+        return val
     except (EOFError, KeyboardInterrupt):
         print()
         return ""
@@ -212,7 +258,7 @@ def _run(choice: int) -> None:
     cmd_name, _, target_label, has_nodes = _ITEMS[choice - 1]
     print(f"\n  {B}{cmd_name}{N}")
 
-    target = _ask(target_label)
+    target = _ask_host(target_label) if choice in (1, 4) else _ask(target_label)
     if not target:
         return
 
