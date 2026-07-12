@@ -15,7 +15,6 @@ from ._deps import ensure_deps
 
 RDAP_IP  = "https://rdap.org/ip/{}"
 RDAP_ASN = "https://rdap.org/autnum/{}"
-IPINFO   = "https://ipinfo.io/{}/json"
 
 _ASN_RE = re.compile(r"^(?:AS)?(\d+)$", re.I)
 
@@ -75,6 +74,64 @@ def _local_time(timezone: str) -> tuple:
         return timezone, "—"
 
 
+def _fetch_geo(ip: str) -> dict:
+    """Try ip-api.com then ipinfo.io; return normalized fields."""
+    import requests
+
+    # ip-api.com — free, no auth, widely accessible
+    try:
+        r = requests.get(f"http://ip-api.com/json/{ip}", timeout=8)
+        if r.status_code == 200:
+            d = r.json()
+            if d.get("status") == "success":
+                as_raw   = d.get("as", "")
+                isp_name = d.get("isp", d.get("org", ""))
+                asn_num  = ""
+                if as_raw.startswith("AS"):
+                    parts    = as_raw.split(" ", 1)
+                    asn_num  = parts[0][2:]
+                    if len(parts) > 1 and not isp_name:
+                        isp_name = parts[1]
+                country = d.get("country", "")
+                cc      = d.get("countryCode", "")
+                return {
+                    "country":  f"{country} ({cc})" if country and cc else country or cc,
+                    "region":   d.get("regionName", ""),
+                    "city":     d.get("city", ""),
+                    "postal":   d.get("zip", ""),
+                    "timezone": d.get("timezone", ""),
+                    "asn":      asn_num,
+                    "isp":      isp_name,
+                }
+    except Exception:
+        pass
+
+    # ipinfo.io — fallback
+    try:
+        r = requests.get(f"https://ipinfo.io/{ip}/json", timeout=8)
+        if r.status_code == 200:
+            d        = r.json()
+            org_raw  = d.get("org", "")
+            asn_num, isp_name = "", org_raw
+            if org_raw.startswith("AS"):
+                parts    = org_raw.split(" ", 1)
+                asn_num  = parts[0][2:]
+                isp_name = parts[1] if len(parts) > 1 else ""
+            return {
+                "country":  d.get("country", ""),
+                "region":   d.get("region", ""),
+                "city":     d.get("city", ""),
+                "postal":   d.get("postal", ""),
+                "timezone": d.get("timezone", ""),
+                "asn":      asn_num,
+                "isp":      isp_name,
+            }
+    except Exception:
+        pass
+
+    return {}
+
+
 def run_ip(target: str) -> None:
     import requests
 
@@ -89,12 +146,8 @@ def run_ip(target: str) -> None:
     except Exception:
         pass
 
-    # ── ipinfo.io ─────────────────────────────────────────────────────
-    geo = {}
-    try:
-        geo = requests.get(IPINFO.format(ip), timeout=8).json()
-    except Exception:
-        pass
+    # ── geo: ip-api.com با fallback به ipinfo.io ──────────────────────
+    geo = _fetch_geo(ip)
 
     # ── RDAP برای IP range ────────────────────────────────────────────
     ip_range = "—"
@@ -102,10 +155,10 @@ def run_ip(target: str) -> None:
         rd = requests.get(RDAP_IP.format(ip), timeout=8,
                           headers={"Accept": "application/rdap+json"})
         if rd.status_code == 200:
-            d    = rd.json()
-            cidrs = d.get("cidr0_cidrs", [])
+            d        = rd.json()
+            cidrs    = d.get("cidr0_cidrs", [])
             cidr_str = ", ".join(
-                f"{c.get('v4prefix', c.get('v6prefix','?'))}/{c.get('length','?')}"
+                f"{c.get('v4prefix', c.get('v6prefix', '?'))}/{c.get('length', '?')}"
                 for c in cidrs
             )
             s = d.get("startAddress", "")
@@ -114,17 +167,12 @@ def run_ip(target: str) -> None:
     except Exception:
         pass
 
-    # ── parse org → ASN + ISP ─────────────────────────────────────────
-    org_raw = geo.get("org", "")
-    asn = isp = "—"
-    if org_raw.startswith("AS"):
-        parts = org_raw.split(" ", 1)
-        asn   = parts[0][2:]              # بدون "AS"
-        isp   = parts[1] if len(parts) > 1 else "—"
-    elif org_raw:
-        isp = org_raw
-
-    # ── timezone + local time ─────────────────────────────────────────
+    asn        = geo.get("asn", "")  or "—"
+    isp        = geo.get("isp", "")  or "—"
+    country    = geo.get("country", "") or "—"
+    region     = geo.get("region",  "") or "—"
+    city       = geo.get("city",    "") or "—"
+    postal     = geo.get("postal",  "") or "—"
     tz_disp, local_time = _local_time(geo.get("timezone", ""))
 
     print(f"\n{C}INFO  {ip}{N}\n")
@@ -133,12 +181,12 @@ def run_ip(target: str) -> None:
     _row("IP range",    ip_range)
     _row("ASN",         asn)
     _row("ISP / Org",   isp)
-    _row("Country",     geo.get("country", "—"))
-    _row("Region",      geo.get("region",  "—"))
-    _row("City",        geo.get("city",    "—"))
+    _row("Country",     country)
+    _row("Region",      region)
+    _row("City",        city)
     _row("Time zone",   tz_disp)
     _row("Local time",  local_time)
-    _row("Postal Code", geo.get("postal",  "—"))
+    _row("Postal Code", postal)
     print()
 
 
