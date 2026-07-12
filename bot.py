@@ -46,6 +46,7 @@ E_BACK   = _em("5248966320845768373", "◀️")
 # ── state keys ────────────────────────────────────────────────────────────────
 _S_IP       = "ip"
 _S_INTERVAL = "interval"
+_S_DOMAIN   = "domain"
 
 # ── visual separators ─────────────────────────────────────────────────────────
 _HR  = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
@@ -143,6 +144,91 @@ def _check_ip(ip: str, max_nodes: int = 25) -> dict:
         "total_global": global_total,
     }
 
+
+def _check_domain_data(domain: str) -> dict:
+    import requests, socket as _sock
+    domain = domain.lower().strip().lstrip("https://").lstrip("http://").split("/")[0]
+    if domain.startswith("www."):
+        domain = domain[4:]
+    if "." not in domain:
+        domain += ".com"
+
+    sess = requests.Session()
+    sess.headers["Accept"] = "application/rdap+json"
+    try:
+        r = sess.get(f"https://rdap.org/domain/{domain}", timeout=10)
+        if r.status_code == 200:
+            d         = r.json()
+            registrar = "—"
+            for ent in d.get("entities", []):
+                if "registrar" in ent.get("roles", []):
+                    vcard = ent.get("vcardArray", [None, []])[1]
+                    for field in vcard:
+                        if field[0] == "fn" and field[3]:
+                            registrar = str(field[3])
+                            break
+                    break
+            created = expires = "—"
+            for ev in d.get("events", []):
+                action = ev.get("eventAction", "")
+                if action == "registration":
+                    created = (ev.get("eventDate") or "")[:10] or "—"
+                elif action == "expiration":
+                    expires = (ev.get("eventDate") or "")[:10] or "—"
+            statuses = d.get("status", [])
+            ns_list  = [ns.get("ldhName", "") for ns in d.get("nameservers", [])[:4]
+                        if ns.get("ldhName")]
+            return {
+                "domain": domain, "status": "registered",
+                "registrar": registrar, "created": created,
+                "expires": expires, "statuses": statuses,
+                "nameservers": ns_list,
+            }
+        if r.status_code == 404:
+            return {"domain": domain, "status": "available"}
+    except Exception:
+        pass
+    try:
+        _sock.getaddrinfo(domain, None)
+        return {"domain": domain, "status": "registered",
+                "registrar": "—", "created": "—", "expires": "—",
+                "statuses": [], "nameservers": []}
+    except _sock.gaierror:
+        return {"domain": domain, "status": "available"}
+
+
+def _domain_text(result: dict) -> str:
+    domain = result.get("domain", "?")
+    status = result.get("status", "unknown")
+
+    if status == "available":
+        verdict = f"{E_OK}  <b>Available for Registration</b>"
+        details = ""
+    elif status == "registered":
+        reg = result.get("registrar", "—") or "—"
+        cr  = result.get("created",   "—") or "—"
+        ex  = result.get("expires",   "—") or "—"
+        sts = ", ".join(result.get("statuses", [])) or "—"
+        ns  = result.get("nameservers", [])
+        ns_str = "\n".join(f"    <code>{n}</code>" for n in ns) if ns else "    <code>—</code>"
+        verdict = f"{E_ERR}  <b>Registered</b>"
+        details = (
+            f"\n\n"
+            f"  {E_GLOBE}  <b>Registrar</b>\n    <code>{reg}</code>\n\n"
+            f"  {E_CLOCK}  <b>Created</b>    <code>{cr}</code>\n"
+            f"  {E_CLOCK}  <b>Expires</b>    <code>{ex}</code>\n\n"
+            f"  {E_SAT}  <b>Status</b>     <code>{sts}</code>\n\n"
+            f"  {E_SEARCH}  <b>Nameservers</b>\n{ns_str}"
+        )
+    else:
+        verdict = f"{E_WARN}  <b>Could not determine status</b>"
+        details = ""
+
+    return (
+        f"{E_GLOBE}  <b>Domain Check  ·  <code>{domain}</code></b>\n"
+        f"{_HR}\n\n"
+        f"{verdict}{details}"
+    )
 
 
 
@@ -414,6 +500,7 @@ def _build_app(token: str):
             [Btn("🗑  Remove IP",           callback_data="remove"),
              Btn("⏱  Set Interval",        callback_data="interval")],
             [Btn(toggle[0],                callback_data=toggle[1])],
+            [Btn("🌐  Domain Check",        callback_data="domain")],
             [Btn("❓  Guide & Help",        callback_data="help"),
              Btn("ℹ️  About",              callback_data="about")],
         ])
@@ -627,6 +714,25 @@ def _build_app(token: str):
                 f"  {E_CLOCK}  Auto-check every   <b>{mins} min</b>\n\n"
                 f"<i>Next scheduled check will run in {mins} min.</i>",
                 reply_markup=_kb_back(),
+            )
+
+        # waiting for domain ──────────────────────
+        elif state == _S_DOMAIN:
+            ctx.user_data.pop("awaiting", None)
+            domain = text.strip()
+            await update.message.reply_html(
+                f"{E_GLOBE}  <b>Checking  <code>{domain}</code> …</b>\n"
+                f"{_HR}\n\n"
+                f"  {E_CLOCK}  <i>Looking up RDAP records…</i>",
+            )
+            loop   = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, _check_domain_data, domain)
+            await update.message.reply_html(
+                _domain_text(result),
+                reply_markup=Kbd([
+                    [Btn("🔄  Check Again", callback_data="domain"),
+                     Btn("◀️  Menu",        callback_data="menu")],
+                ]),
             )
 
         # no state → show menu ─────────────────────
@@ -915,6 +1021,22 @@ def _build_app(token: str):
                 )
             else:
                 await _show_menu(update, ctx, edit=True)
+
+        # ── domain check ─────────────────────────
+        elif data == "domain":
+            ctx.user_data["awaiting"] = _S_DOMAIN
+            await query.edit_message_text(
+                f"{E_GLOBE}  <b>Domain Check</b>\n"
+                f"{_HR}\n\n"
+                f"<i>Send the domain name to check availability\n"
+                f"and WHOIS information:</i>\n\n"
+                f"{_DIV}\n\n"
+                f"  <code>example.com</code>\n"
+                f"  <code>mysite.io</code>\n"
+                f"  <code>google</code>  <i>→ checks google.com</i>",
+                parse_mode="HTML",
+                reply_markup=_kb_cancel(),
+            )
 
         # ── interval ──────────────────────────────
         elif data == "interval":
