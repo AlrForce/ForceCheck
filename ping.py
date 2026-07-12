@@ -50,7 +50,7 @@ def _row(node: str, info: list, pings, full_loc: bool = True) -> bool:
         status  = f"{R}timeout{N}"
         reached = False
     print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {rtt_str:>{_COL_RTT}}  {req_str:<{_COL_REQ}}  {status}", flush=True)
-    time.sleep(0.04)
+    time.sleep(0.015)
     return reached
 
 
@@ -92,15 +92,22 @@ def run(host: str, max_nodes: int = 220) -> None:
     iran_ok = global_ok = 0
 
     # ── نمایش زنده ────────────────────────────────────────────────────
-    for _ in range(20):
-        time.sleep(1.5)
-        batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json()
+    no_new = 0
+    for _ in range(30):
+        time.sleep(0.8)
+        try:
+            batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=10).json()
+        except Exception:
+            continue
+
+        new_this_round = 0
 
         # ایران اول
         for node, info in iran_nodes:
             if node in iran_seen or batch.get(node) is None:
                 continue
             iran_seen.add(node)
+            new_this_round += 1
             if not iran_hdr:
                 _header("IRAN", Y)
                 iran_hdr = True
@@ -112,6 +119,7 @@ def run(host: str, max_nodes: int = 220) -> None:
             if node in global_seen or batch.get(node) is None:
                 continue
             global_seen.add(node)
+            new_this_round += 1
             if not global_hdr:
                 _header("GLOBAL", C)
                 global_hdr = True
@@ -120,6 +128,14 @@ def run(host: str, max_nodes: int = 220) -> None:
 
         if len(iran_seen) + len(global_seen) >= total:
             break
+
+        # اگر ۳ poll پشت سر هم نتیجه جدید نبود، خارج شو
+        if new_this_round == 0:
+            no_new += 1
+            if no_new >= 3:
+                break
+        else:
+            no_new = 0
 
     # ── نودهایی که اصلاً جواب ندادند ─────────────────────────────────
     for node, info in iran_nodes:

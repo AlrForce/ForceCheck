@@ -45,7 +45,7 @@ def _row(node: str, info: list, res) -> bool:
         err_raw = entry[1] if entry and len(entry) > 1 else "timeout"
         err     = str(err_raw)[:18] if isinstance(err_raw, str) else "timeout"
         print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {R}{'400':>{_COL_CODE}}{N} {'—':>{_COL_TIME}}  {R}{err}{N}", flush=True)
-        time.sleep(0.04)
+        time.sleep(0.015)
         return False
 
     # check-host.net HTTP format: [1, time_seconds, http_code, ...]
@@ -80,7 +80,7 @@ def _row(node: str, info: list, res) -> bool:
         code_disp = "200"
 
     print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code_disp:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
-    time.sleep(0.04)
+    time.sleep(0.015)
     # اگر کد HTTP نداشتیم ولی entry[0]==1 بود → موفق
     return (200 <= code < 400) if code else True
 
@@ -117,19 +117,32 @@ def run(host: str, max_nodes: int = 220) -> None:
     seen     = set()
     ok_count = 0
 
-    for _ in range(20):
-        time.sleep(1.5)
-        batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json()
+    no_new = 0
+    for _ in range(30):
+        time.sleep(0.8)
+        try:
+            batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=10).json()
+        except Exception:
+            continue
 
+        new_this_round = 0
         for node, info in nodes.items():
             if node in seen or batch.get(node) is None:
                 continue
             seen.add(node)
+            new_this_round += 1
             if _row(node, info, batch[node]):
                 ok_count += 1
 
         if len(seen) >= total:
             break
+
+        if new_this_round == 0:
+            no_new += 1
+            if no_new >= 3:
+                break
+        else:
+            no_new = 0
 
     # نودهایی که جواب ندادند
     for node, info in nodes.items():
