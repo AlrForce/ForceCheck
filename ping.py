@@ -152,9 +152,9 @@ def run(host: str, max_nodes: int = 220) -> None:
         print(f"  {R}║{'⚠  This IP is Restricted  ( Filter )':^40}║{N}")
         print(f"  {R}╚{'═' * 40}╝{N}")
     elif iran_reach and not global_reach:
-        print(f"  {Y}╔{'═' * 40}╗{N}")
-        print(f"  {Y}║{'◎  This IP Is Iran Access Only':^40}║{N}")
-        print(f"  {Y}╚{'═' * 40}╝{N}")
+        print(f"  {R}╔{'═' * 40}╗{N}")
+        print(f"  {R}║{'◎  This IP Is Iran Access':^40}║{N}")
+        print(f"  {R}╚{'═' * 40}╝{N}")
     elif iran_reach and global_reach:
         print(f"  {G}╔{'═' * 40}╗{N}")
         print(f"  {G}║{'✓  Globally Accessible':^40}║{N}")
