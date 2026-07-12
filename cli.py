@@ -167,35 +167,35 @@ def _run_uninstall() -> None:
         print(f"\n  {Y}cancelled{N}")
         return
 
-    import shutil, sysconfig
+    import os as _os, shutil, sysconfig
 
     print()
     errors = []
 
-    # حذف پوشه پکیج
-    try:
-        site = __import__("site").getsitepackages()[0]
-    except Exception:
-        site = sysconfig.get_path("purelib")
-
-    pkg_dir = f"{site}/forcecheck"
-    if __import__("os").path.isdir(pkg_dir):
+    # حذف پوشه پکیج  (actual install location via __file__)
+    pkg_dir = _os.path.dirname(_os.path.abspath(__file__))
+    if _os.path.isdir(pkg_dir):
         try:
             shutil.rmtree(pkg_dir)
         except Exception as e:
             errors.append(f"package dir: {e}")
 
-    # حذف دستورها  (bare on POSIX, .cmd/.exe on Windows)
-    import os as _os
-    scripts = sysconfig.get_path("scripts")
-    for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!", "domain!", "checkall!", "bot!", "ff", "fc", "fcheck"):
-        for suffix in ("", ".cmd", ".exe"):
-            path = _os.path.join(scripts, cmd + suffix)
-            if _os.path.exists(path):
-                try:
-                    _os.remove(path)
-                except Exception as e:
-                    errors.append(f"{cmd}{suffix}: {e}")
+    # حذف دستورها  (bare on POSIX, .cmd/.exe on Windows; system + user dirs)
+    script_dirs = [sysconfig.get_path("scripts")]
+    try:
+        script_dirs.append(sysconfig.get_path("scripts", "nt_user"))
+    except Exception:
+        pass
+    for scripts in dict.fromkeys(d for d in script_dirs if d):
+        for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!",
+                    "domain!", "checkall!", "bot!", "ff", "fc", "fcheck"):
+            for suffix in ("", ".cmd", ".exe"):
+                path = _os.path.join(scripts, cmd + suffix)
+                if _os.path.exists(path):
+                    try:
+                        _os.remove(path)
+                    except Exception as e:
+                        errors.append(f"{cmd}{suffix}: {e}")
 
     if errors:
         print(f"  {Y}Uninstall completed with warnings:{N}")
@@ -758,12 +758,9 @@ def _run_update() -> None:
 
     print()
 
-    try:
-        site = __import__("site").getsitepackages()[0]
-    except Exception:
-        site = sysconfig.get_path("purelib")
-
-    pkg_dir = os.path.join(site, "forcecheck")
+    # Write back to wherever this package is actually installed (user or
+    # system site) — more reliable than guessing site-packages.
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
     os.makedirs(pkg_dir, exist_ok=True)
 
     # ── fetch file manifest from GitHub (always up-to-date list) ──────────

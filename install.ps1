@@ -1,6 +1,7 @@
 # ForceCheck — Windows installer
 # Mirrors install.sh: downloads package files directly (no git needed)
-# and creates .cmd launchers for every command.
+# and creates .cmd launchers for every command. Falls back to a per-user
+# location when the system site-packages isn't writable (no admin needed).
 
 $ErrorActionPreference = "Stop"
 
@@ -12,6 +13,16 @@ $RAW = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
 function Say-Ok($m)   { Write-Host "  [ok] $m"  -ForegroundColor Green }
 function Say-Err($m)  { Write-Host "  [x]  $m"  -ForegroundColor Red }
 function Say-Step($m) { Write-Host "`n  > $m"   -ForegroundColor Cyan }
+
+function Test-Writable($dir) {
+    try {
+        if (-not (Test-Path $dir)) { return $false }
+        $t = Join-Path $dir (".fc_wt_" + [Guid]::NewGuid().ToString("N"))
+        [IO.File]::WriteAllText($t, "x")
+        Remove-Item $t -Force
+        return $true
+    } catch { return $false }
+}
 
 Write-Host ""
 Write-Host "  ForceCheck  -  Windows installer" -ForegroundColor Cyan
@@ -31,13 +42,25 @@ if (-not $py) {
     exit 1
 }
 $pyVer = & $py -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-Say-Ok "Python $pyVer  ($py)"
+$pyExe = & $py -c "import sys; print(sys.executable)"
+Say-Ok "Python $pyVer  ($pyExe)"
 
-# ── locate install dirs ───────────────────────────────────────────────────
+# ── locate install dirs (system, else per-user) ────────────────────────────
 Say-Step "Preparing install location"
 $site    = & $py -c "import sysconfig; print(sysconfig.get_path('purelib'))"
 $scripts = & $py -c "import sysconfig; print(sysconfig.get_path('scripts'))"
-$pkg     = Join-Path $site "forcecheck"
+
+$parent  = Split-Path $site -Parent
+if (-not ((Test-Writable $site) -or (Test-Writable $parent))) {
+    $site    = & $py -c "import site; print(site.getusersitepackages())"
+    $scripts = & $py -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
+    Write-Host "  [i] System location needs admin - using per-user location." -ForegroundColor Yellow
+    $userMode = $true
+} else {
+    $userMode = $false
+}
+
+$pkg = Join-Path $site "forcecheck"
 New-Item -ItemType Directory -Force -Path $pkg     | Out-Null
 New-Item -ItemType Directory -Force -Path $scripts | Out-Null
 Say-Ok $pkg
@@ -73,8 +96,16 @@ foreach ($f in $files) {
 # ── dependencies ───────────────────────────────────────────────────────────
 Say-Step "Installing dependencies"
 $env:PIP_ROOT_USER_ACTION = "ignore"
-& $py -m pip install --quiet --upgrade requests "python-telegram-bot[job-queue]>=20.0"
-Say-Ok "requests  +  python-telegram-bot"
+$pipArgs = @("-m", "pip", "install", "--quiet", "--upgrade", "requests", "python-telegram-bot[job-queue]>=20.0")
+if ($userMode) { $pipArgs += "--user" }
+try {
+    & $py @pipArgs
+    Say-Ok "requests  +  python-telegram-bot"
+} catch {
+    Say-Err "dependency install failed - retrying with --user"
+    try { & $py @pipArgs "--user"; Say-Ok "requests  +  python-telegram-bot" }
+    catch { Say-Err "could not install dependencies (install manually later)" }
+}
 
 # ── create command launchers ───────────────────────────────────────────────
 Say-Step "Creating commands"
@@ -93,18 +124,31 @@ $cmds = [ordered]@{
 foreach ($name in $cmds.Keys) {
     $mod     = $cmds[$name]
     $cmdPath = Join-Path $scripts "$name.cmd"
-    $body    = "@echo off`r`n`"$py`" -c `"from forcecheck.$mod import main; main()`" %*`r`n"
+    # Pin to the exact Python where forcecheck was installed.
+    $body    = "@echo off`r`n`"$pyExe`" -c `"from forcecheck.$mod import main; main()`" %*`r`n"
     Set-Content -Path $cmdPath -Value $body -Encoding Ascii
     Say-Ok $name
 }
 
-# ── PATH check ─────────────────────────────────────────────────────────────
+# ── ensure scripts dir is on PATH ──────────────────────────────────────────
 $onPath = ($env:PATH -split ";" | Where-Object { $_.TrimEnd("\") -ieq $scripts.TrimEnd("\") })
 if (-not $onPath) {
-    Write-Host ""
-    Write-Host "  [!] Scripts folder is not on your PATH:" -ForegroundColor Yellow
-    Write-Host "      $scripts"
-    Write-Host "      Add it to PATH, or run commands via that folder."
+    try {
+        $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+        if (-not $userPath) { $userPath = "" }
+        if (($userPath -split ";" | Where-Object { $_.TrimEnd("\") -ieq $scripts.TrimEnd("\") }).Count -eq 0) {
+            $newPath = if ($userPath.TrimEnd(";")) { $userPath.TrimEnd(";") + ";" + $scripts } else { $scripts }
+            [Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
+        }
+        $env:PATH = $env:PATH + ";" + $scripts
+        Write-Host ""
+        Write-Host "  [i] Added to your PATH:  $scripts" -ForegroundColor Yellow
+        Write-Host "      Open a NEW terminal for 'ff' to be found."
+    } catch {
+        Write-Host ""
+        Write-Host "  [!] Add this folder to PATH manually:" -ForegroundColor Yellow
+        Write-Host "      $scripts"
+    }
 }
 
 # ── done ───────────────────────────────────────────────────────────────────
