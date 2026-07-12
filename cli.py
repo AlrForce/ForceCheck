@@ -807,6 +807,25 @@ def _run_update() -> None:
             except Exception:
                 pass
 
+    # ── restart bot service if it's running ───────────────────────────────────
+    import subprocess as _sp
+    _svc      = "forcecheck-bot"
+    _svc_file = f"/etc/systemd/system/{_svc}.service"
+    if os.path.exists(_svc_file):
+        _active = _sp.run(
+            f"systemctl is-active {_svc}",
+            shell=True, capture_output=True,
+        ).returncode == 0
+        if _active:
+            _rc = _sp.run(
+                f"systemctl restart {_svc}",
+                shell=True, capture_output=True,
+            ).returncode
+            if _rc == 0:
+                print(f"  {G}✓{N} bot service restarted")
+            else:
+                print(f"  {Y}⚠{N} could not restart bot — run manually: sudo systemctl restart {_svc}")
+
     if failed:
         print(f"\n  {Y}Update completed with {len(failed)} failed file(s).{N}")
     else:
