@@ -17,21 +17,15 @@ STORE_PATH = Path.home() / ".forcecheck_bot.json"
 CHECK_HOST = "https://check-host.net"
 _IP_RE     = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
 
-# ── Telegram premium / animated emoji ────────────────────────────────────────
-# Falls back to the plain emoji character for non-Premium clients.
-
-def _em(eid: str, fb: str) -> str:
-    return f'<tg-emoji emoji-id="{eid}">{fb}</tg-emoji>'
-
-E_OK     = _em("5368324170671202286", "✅")
-E_ERR    = _em("5356794919022551279", "❌")
-E_WARN   = _em("5359285527899875093", "⚠️")
-E_RED    = _em("5199786559058316965", "🔴")
-E_GLOBE  = _em("5195250471850890917", "🌐")
-E_GEM    = _em("5773823955547489790", "💎")
-E_CLOCK  = _em("5290355640753988836", "🕐")
-E_BOLT   = _em("5195264424898498575", "⚡")
-E_IRAN   = "🇮🇷"
+E_OK    = "✅"
+E_ERR   = "❌"
+E_WARN  = "⚠️"
+E_RED   = "🔴"
+E_GLOBE = "🌐"
+E_GEM   = "💎"
+E_CLOCK = "🕐"
+E_BOLT  = "⚡"
+E_IRAN  = "🇮🇷"
 
 # ── awaiting-state keys ───────────────────────────────────────────────────────
 _S_IP       = "ip"
