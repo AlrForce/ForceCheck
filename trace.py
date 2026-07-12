@@ -33,6 +33,10 @@ def _country_of(info) -> str:
 
 
 def _is_iran(info) -> bool:
+    if isinstance(info, (list, tuple)):
+        code = (info[0] if len(info) > 0 else "").lower()
+        name = (info[1] if len(info) > 1 else "").lower()
+        return code == "ir" or "iran" in name
     return "iran" in _country_of(info).lower()
 
 

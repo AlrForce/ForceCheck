@@ -21,7 +21,9 @@ _W        = _COL_NODE + _COL_LOC + _COL_RTT + 16
 
 
 def _is_iran(info: list) -> bool:
-    return "iran" in (info[1] if len(info) > 1 else "").lower()
+    code = (info[0] if len(info) > 0 else "").lower()
+    name = (info[1] if len(info) > 1 else "").lower()
+    return code == "ir" or "iran" in name
 
 
 def _header(title: str, color: str) -> None:
