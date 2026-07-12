@@ -64,7 +64,7 @@ ok "$PKG_DIR"
 
 # ── دانلود فایل‌ها ────────────────────────────────────────────────────────
 step "Downloading ForceCheck"
-PYFILES="__init__.py bgp.py checkall.py cli.py colors.py _deps.py http.py ping.py trace.py whois.py"
+PYFILES="__init__.py bgp.py checkall.py cli.py colors.py _deps.py domain.py http.py ping.py trace.py whois.py"
 TOTAL=$(echo $PYFILES | wc -w)
 DONE=0
 FAILED=0
@@ -103,6 +103,7 @@ create_cmd "bgp!"      "bgp"
 create_cmd "trace!"    "trace"
 create_cmd "http!"     "http"
 create_cmd "info!"     "whois"
+create_cmd "domain!"   "domain"
 create_cmd "checkall!" "checkall"
 create_cmd "fcheck"    "cli"
 
