@@ -22,22 +22,33 @@ _MODES = {
 }
 
 
-def _country_of(info) -> str:
-    """Extract country string from node info — handles list or dict format."""
+def _loc_of(info):
+    """Return the [code, country, city] location list from any node-info shape.
+
+    Handles:
+      - list/tuple  ["ir", "Iran", "Qom", ...]        (check-ping / traceroute)
+      - dict        {"location": ["ir", "Iran", ...]}  (/nodes/hosts)
+    """
     if isinstance(info, (list, tuple)):
-        return info[1] if len(info) > 1 else ""
+        return list(info)
     if isinstance(info, dict):
-        return (info.get("1") or info.get("country_name")
-                or info.get("country") or info.get("location", ""))
-    return str(info)
+        loc = info.get("location")
+        if isinstance(loc, (list, tuple)):
+            return list(loc)
+        return [info.get("country", ""), info.get("country_name", "")]
+    return []
+
+
+def _country_of(info) -> str:
+    loc = _loc_of(info)
+    return str(loc[1]) if len(loc) > 1 else ""
 
 
 def _is_iran(info) -> bool:
-    if isinstance(info, (list, tuple)):
-        code = (info[0] if len(info) > 0 else "").lower()
-        name = (info[1] if len(info) > 1 else "").lower()
-        return code == "ir" or "iran" in name
-    return "iran" in _country_of(info).lower()
+    loc  = _loc_of(info)
+    code = str(loc[0]).lower() if len(loc) > 0 else ""
+    name = str(loc[1]).lower() if len(loc) > 1 else ""
+    return code == "ir" or "iran" in name
 
 
 def _get_filtered_nodes(region: str, count: int) -> list:
