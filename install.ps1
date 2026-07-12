@@ -49,8 +49,11 @@ $files = @(
     "cli.py", "colors.py", "_deps.py", "http.py", "ping.py",
     "tcp.py", "trace.py", "whois.py"
 )
+# cache-buster — raw.githubusercontent CDN caches ~5 min; a unique query
+# param forces a fresh fetch so we never install stale files.
+$nc = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 try {
-    $mf   = (Invoke-WebRequest "$RAW/manifest.txt" -UseBasicParsing).Content
+    $mf   = (Invoke-WebRequest "$RAW/manifest.txt?nc=$nc" -UseBasicParsing).Content
     $list = $mf -split "`n" | ForEach-Object { $_.Trim() } |
             Where-Object { $_ -and -not $_.StartsWith("#") }
     if ($list) { $files = $list }
@@ -59,7 +62,7 @@ try {
 $failed = 0
 foreach ($f in $files) {
     try {
-        Invoke-WebRequest "$RAW/$f" -OutFile (Join-Path $pkg $f) -UseBasicParsing
+        Invoke-WebRequest "$RAW/$($f)?nc=$nc" -OutFile (Join-Path $pkg $f) -UseBasicParsing
         Say-Ok $f
     } catch {
         Say-Err $f

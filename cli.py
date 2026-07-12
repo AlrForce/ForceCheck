@@ -715,18 +715,21 @@ def _show_help() -> None:
 
 
 def _run_update() -> None:
-    import os, sysconfig, urllib.request
+    import os, sysconfig, urllib.request, time
 
     print(f"\n  {B}update{N}")
     print(f"  {DIM}current version : {__version__}{N}")
 
     raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
+    # cache-buster — raw.githubusercontent CDN caches ~5 min; a unique query
+    # param forces a fresh fetch so update never pulls stale files.
+    nc = int(time.time())
 
     # ── fetch latest version ───────────────────────────────────────────────
     latest = "unknown"
     try:
         import re as _re
-        resp = urllib.request.urlopen(f"{raw_base}/__init__.py", timeout=6)
+        resp = urllib.request.urlopen(f"{raw_base}/__init__.py?nc={nc}", timeout=6)
         m    = _re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', resp.read().decode())
         if m:
             latest = m.group(1)
@@ -771,7 +774,7 @@ def _run_update() -> None:
     ]
     pyfiles = _FALLBACK
     try:
-        resp  = urllib.request.urlopen(f"{raw_base}/manifest.txt", timeout=6)
+        resp  = urllib.request.urlopen(f"{raw_base}/manifest.txt?nc={nc}", timeout=6)
         lines = resp.read().decode().splitlines()
         fetched = [l.strip() for l in lines if l.strip() and not l.startswith("#")]
         if fetched:
@@ -784,7 +787,7 @@ def _run_update() -> None:
     for f in pyfiles:
         dest = os.path.join(pkg_dir, f)
         try:
-            urllib.request.urlretrieve(f"{raw_base}/{f}", dest)
+            urllib.request.urlretrieve(f"{raw_base}/{f}?nc={nc}", dest)
             print(f"  {G}✓{N} {f}")
         except Exception:
             failed.append(f)
