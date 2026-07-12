@@ -19,8 +19,12 @@ except ImportError:
     _VER = "?"
 
 STORE_PATH = Path.home() / ".forcecheck_bot.json"
-CHECK_HOST = "https://check-host.net"
-_IP_RE     = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
+CHECK_HOST  = "https://check-host.net"
+_IP_RE      = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
+_DOMAIN_RE  = re.compile(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$")
+
+def _is_valid_target(t: str) -> bool:
+    return bool(_IP_RE.match(t) or _DOMAIN_RE.match(t))
 
 # ── premium animated emoji (message text only) ────────────────────────────────
 def _em(eid: str, fb: str) -> str:
@@ -300,7 +304,7 @@ def _menu_text(user: dict) -> str:
     interval = user.get("interval", 60)
     active   = user.get("active", True)
     n        = len(ips)
-    ip_str   = f"<b>{n} IP{'s' if n != 1 else ''}</b>" if n else "<b>none</b>"
+    ip_str   = f"<b>{n} target{'s' if n != 1 else ''}</b>" if n else "<b>none</b>"
     play     = E_PLAY if active else E_PAUSE
     st_label = "<b>Active</b> — auto-checks running" if active else "<b>Paused</b> — manual only"
     return (
@@ -352,6 +356,7 @@ def _results_text(
     n      = len(ips)
     cards  = [_ip_card(ip, r) for ip, r in zip(ips, res_list)]
     sep    = f"\n\n{_DIV}\n\n"
+
     footer = (
         f"\n\n{_HR}\n{E_CLOCK}  <i>Next check in  <b>{interval} min</b></i>"
         if is_scheduled and interval else ""
@@ -369,7 +374,7 @@ def _results_text(
     summary = "  ·  " + "  ".join(summary_parts) if summary_parts else ""
 
     return (
-        f"{icon}  <b>{title}</b>  ·  <b>{n} IP{'s' if n > 1 else ''}</b>{summary}\n"
+        f"{icon}  <b>{title}</b>  ·  <b>{n} target{'s' if n > 1 else ''}</b>{summary}\n"
         f"{_HR}\n\n"
         + sep.join(cards)
         + footer
@@ -384,7 +389,7 @@ def _list_text(user: dict) -> str:
     play     = E_PLAY if active else E_PAUSE
     st_label = "<b>Active</b>" if active else "<b>Paused</b>"
     lines = [
-        f"📋  <b>My IPs</b>",
+        f"📋  <b>My Watch List</b>",
         f"{_HR}",
         f"",
         f"  {play}  {st_label}  ·  every  <b>{interval} min</b>",
@@ -394,7 +399,7 @@ def _list_text(user: dict) -> str:
         f"",
     ]
     if not ips:
-        lines.append(f"  <i>No IPs added yet.</i>")
+        lines.append(f"  <i>Nothing added yet.</i>")
     else:
         for i, ip in enumerate(ips, 1):
             lines.append(f"  <code>{i:>2}.   {ip}</code>")
@@ -410,12 +415,12 @@ def _help_text() -> str:
         f"  Instantly pings all your IPs from\n"
         f"  <b>100+ nodes</b> around the world.\n\n"
 
-        f"{E_ADD}  <b>Add IP</b>\n"
-        f"  Add an IPv4 address to your watch list.\n"
-        f"  <i>Format: 1.2.3.4 · Max 20 IPs</i>\n\n"
+        f"{E_ADD}  <b>Add IP / Domain</b>\n"
+        f"  Add an IP address or domain name to monitor.\n"
+        f"  <i>e.g. 1.2.3.4  or  example.com · Max 20</i>\n\n"
 
-        f"{E_TRASH}  <b>Remove IP</b>\n"
-        f"  Tap an IP to stop monitoring it.\n\n"
+        f"{E_TRASH}  <b>Remove</b>\n"
+        f"  Tap an entry to stop monitoring it.\n\n"
 
         f"{E_CLOCK}  <b>Set Interval</b>\n"
         f"  How often the bot auto-checks your IPs.\n"
@@ -495,9 +500,9 @@ def _build_app(token: str):
         )
         return Kbd([
             [Btn("🔍  Check All Now",       callback_data="check")],
-            [Btn("📋  My IPs",              callback_data="list"),
-             Btn("➕  Add IP",              callback_data="add")],
-            [Btn("🗑  Remove IP",           callback_data="remove"),
+            [Btn("📋  My List",             callback_data="list"),
+             Btn("➕  Add IP / Domain",    callback_data="add")],
+            [Btn("🗑  Remove",              callback_data="remove"),
              Btn("⏱  Set Interval",        callback_data="interval")],
             [Btn(toggle[0],                callback_data=toggle[1])],
             [Btn("🌐  Domain Check",        callback_data="domain")],
@@ -614,26 +619,30 @@ def _build_app(token: str):
         if state == _S_IP:
             ctx.user_data.pop("awaiting", None)
 
-            if not _IP_RE.match(text):
+            target = text.strip().lower()
+            if target.startswith("www."):
+                target = target[4:]
+
+            if not _is_valid_target(target):
                 await update.message.reply_html(
-                    f"{E_ERR}  <b>Invalid IP Address</b>\n"
+                    f"{E_ERR}  <b>Invalid Input</b>\n"
                     f"{_HR}\n\n"
                     f"  <code>{text}</code>\n\n"
-                    f"<i>Please send a valid IPv4 address.\n"
-                    f"Format: four numbers separated by dots.</i>\n\n"
-                    f"  <code>e.g.   1 . 2 . 3 . 4</code>",
+                    f"<i>Please send a valid IPv4 address or domain name.</i>\n\n"
+                    f"  <code>e.g.   1.2.3.4</code>\n"
+                    f"  <code>e.g.   example.com</code>",
                     reply_markup=_kb_cancel(),
                 )
                 return
 
             store, user = _get_user(uid)
-            if text in user["ips"]:
+            if target in user["ips"]:
                 await update.message.reply_html(
                     f"{E_WARN}  <b>Already Monitoring</b>\n"
                     f"{_HR}\n\n"
-                    f"  {E_SAT}  <b><code>{text}</code></b>\n\n"
-                    f"<i>This IP is already in your watch list.\n"
-                    f"Send a different IP or go back to menu.</i>",
+                    f"  {E_SAT}  <b><code>{target}</code></b>\n\n"
+                    f"<i>This is already in your watch list.\n"
+                    f"Send a different IP or domain or go back to menu.</i>",
                     reply_markup=Kbd([
                         [Btn("➕  Add Another", callback_data="add"),
                          Btn("◀️  Menu",        callback_data="menu")],
@@ -644,16 +653,16 @@ def _build_app(token: str):
                 await update.message.reply_html(
                     f"{E_ERR}  <b>Watch List Full</b>\n"
                     f"{_HR}\n\n"
-                    f"  {E_GLOBE}  <b>20 / 20</b>  IPs used\n\n"
-                    f"<i>Remove an IP first to add a new one.</i>",
+                    f"  {E_GLOBE}  <b>20 / 20</b>  slots used\n\n"
+                    f"<i>Remove an entry first to add a new one.</i>",
                     reply_markup=Kbd([
-                        [Btn("🗑  Remove IP", callback_data="remove"),
-                         Btn("◀️  Menu",      callback_data="menu")],
+                        [Btn("🗑  Remove",  callback_data="remove"),
+                         Btn("◀️  Menu",   callback_data="menu")],
                     ]),
                 )
                 return
 
-            user["ips"].append(text)
+            user["ips"].append(target)
             _save(store)
             if user.get("active", True):
                 _schedule(ctx.job_queue, uid, user.get("interval", 60))
@@ -662,7 +671,7 @@ def _build_app(token: str):
             await update.message.reply_html(
                 f"{E_OK}  <b>Added to Monitoring</b>\n"
                 f"{_HR}\n\n"
-                f"  {E_SAT}  <b><code>{text}</code></b>\n\n"
+                f"  {E_SAT}  <b><code>{target}</code></b>\n\n"
                 f"  {E_CLOCK}  First check in   <b>{user.get('interval', 60)} min</b>\n"
                 f"  {E_GLOBE}  Slots used:      <b>{n_used} / 20</b>",
                 reply_markup=Kbd([
@@ -968,13 +977,14 @@ def _build_app(token: str):
             n_used  = len(user.get("ips", []))
             ctx.user_data["awaiting"] = _S_IP
             await query.edit_message_text(
-                f"{E_ADD}  <b>Add IP to Monitor</b>\n"
+                f"{E_ADD}  <b>Add IP or Domain</b>\n"
                 f"{_HR}\n\n"
-                f"Send the <b>IPv4 address</b> you want to monitor:\n\n"
+                f"Send an <b>IP address</b> or <b>domain name</b> to monitor:\n\n"
                 f"  {E_GLOBE}  Slots:  <b>{n_used} / 20</b> used\n"
                 f"  {E_CLOCK}  Interval:  every  <b>{user.get('interval', 60)} min</b>\n\n"
                 f"{_DIV}\n\n"
-                f"  <code>e.g.   1 . 2 . 3 . 4</code>",
+                f"  <code>1.2.3.4</code>\n"
+                f"  <code>example.com</code>",
                 parse_mode="HTML",
                 reply_markup=_kb_cancel(),
             )
@@ -993,9 +1003,9 @@ def _build_app(token: str):
                 )
                 return
             await query.edit_message_text(
-                f"{E_TRASH}  <b>Remove IP</b>\n"
+                f"{E_TRASH}  <b>Remove from Watch List</b>\n"
                 f"{_HR}\n\n"
-                f"<i>Tap an IP below to remove it\n"
+                f"<i>Tap an entry below to remove it\n"
                 f"from your monitoring list:</i>",
                 parse_mode="HTML",
                 reply_markup=_kb_remove(ips),
