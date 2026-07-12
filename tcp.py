@@ -39,17 +39,18 @@ def _row(node: str, info: list, result, full_loc: bool = True) -> bool:
     rtt_str = "—"
     status  = f"{R}timeout{N}"
 
-    if result:
-        probe = result[0] if isinstance(result, list) and result else None
-        if probe and isinstance(probe, (list, tuple)):
-            if probe[0] == 1:
-                rtt_raw = probe[1] if len(probe) > 1 else None
-                rtt_str = f"{rtt_raw * 1000:.1f}" if isinstance(rtt_raw, (int, float)) else "—"
-                status  = f"{G}open{N}"
-                reached = True
-            else:
-                err    = str(probe[1]) if len(probe) > 1 else ""
-                status = f"{R}{err[:18]}{N}" if err else f"{R}closed{N}"
+    # API returns: [{"address": "IP", "time": 0.045}]  (open)
+    #          or: [{"error": "Connection timed out"}]  (closed)
+    if result and isinstance(result, list):
+        probe = result[0] if isinstance(result[0], dict) else {}
+        if "time" in probe:
+            rtt_raw = probe["time"]
+            rtt_str = f"{rtt_raw * 1000:.1f}" if isinstance(rtt_raw, (int, float)) else "—"
+            status  = f"{G}open{N}"
+            reached = True
+        elif "error" in probe:
+            err    = str(probe["error"])[:20]
+            status = f"{R}{err if err else 'closed'}{N}"
 
     print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {rtt_str:>{_COL_RTT}}  {status}", flush=True)
     time.sleep(0.04)
