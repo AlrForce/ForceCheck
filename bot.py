@@ -1,22 +1,12 @@
 """
-ForceCheck Telegram Bot — IP health monitor via check-host.net
+ForceCheck Telegram Bot
+Modern inline-keyboard UI · scheduled IP monitoring via check-host.net
 
-Setup:
-  1. Create a bot via @BotFather on Telegram
-  2. Run:  bot! --token <TOKEN>
-     Or:   fcheck → 8 (Bot Settings)
-
-Telegram commands:
-  /start            welcome & register
-  /add <ip>         add IP to watch list
-  /remove <ip>      remove IP from list
-  /list             show watched IPs and interval
-  /check            run immediate check on all IPs
-  /interval <min>   set auto-check interval (min: 5)
-  /pause            pause automatic checks
-  /resume           resume automatic checks
+Setup: bot! --token <TOKEN>
+       or:  fcheck → 8 (Bot Settings)
 """
 
+import asyncio
 import json
 import re
 import sys
@@ -27,6 +17,25 @@ STORE_PATH = Path.home() / ".forcecheck_bot.json"
 CHECK_HOST = "https://check-host.net"
 _IP_RE     = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
 
+# ── Telegram premium / animated emoji ────────────────────────────────────────
+# Falls back to the plain emoji character for non-Premium clients.
+
+def _em(eid: str, fb: str) -> str:
+    return f'<tg-emoji emoji-id="{eid}">{fb}</tg-emoji>'
+
+E_OK     = _em("5368324170671202286", "✅")
+E_ERR    = _em("5356794919022551279", "❌")
+E_WARN   = _em("5359285527899875093", "⚠️")
+E_RED    = _em("5199786559058316965", "🔴")
+E_GLOBE  = _em("5195250471850890917", "🌐")
+E_GEM    = _em("5773823955547489790", "💎")
+E_CLOCK  = _em("5290355640753988836", "🕐")
+E_BOLT   = _em("5195264424898498575", "⚡")
+E_IRAN   = "🇮🇷"
+
+# ── awaiting-state keys ───────────────────────────────────────────────────────
+_S_IP       = "ip"
+_S_INTERVAL = "interval"
 
 # ── storage ───────────────────────────────────────────────────────────────────
 
@@ -43,37 +52,39 @@ def _save(data: dict) -> None:
     STORE_PATH.write_text(json.dumps(data, indent=2))
 
 
+def _get_user(uid: str) -> tuple:
+    store = _load()
+    user  = store["users"].setdefault(
+        uid, {"ips": [], "interval": 60, "active": True}
+    )
+    return store, user
+
+
 # ── check-host.net ────────────────────────────────────────────────────────────
 
-def _is_iran(node_info: list) -> bool:
-    return "iran" in (node_info[1] if len(node_info) > 1 else "").lower()
+def _is_iran(info: list) -> bool:
+    return "iran" in (info[1] if len(info) > 1 else "").lower()
 
 
-def _poll_results(sess, request_id: str, node_count: int) -> dict:
+def _poll_results(sess, rid: str, n: int) -> dict:
     results = {}
     for _ in range(18):
         time.sleep(2)
         try:
-            r = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15)
-            results = r.json()
+            results = sess.get(
+                f"{CHECK_HOST}/check-result/{rid}", timeout=15
+            ).json()
         except Exception:
             continue
-        if sum(1 for v in results.values() if v is not None) >= node_count:
+        if sum(1 for v in results.values() if v is not None) >= n:
             break
     return results
 
 
 def _check_ip(ip: str, max_nodes: int = 25) -> dict:
-    """
-    Returns:
-      iran_ok, global_ok (bool)
-      iran_nodes, global_nodes (int — OK count)
-      total_iran, total_global (int)
-    """
     import requests
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
-
     try:
         r = sess.get(
             f"{CHECK_HOST}/check-ping",
@@ -84,30 +95,24 @@ def _check_ip(ip: str, max_nodes: int = 25) -> dict:
         data = r.json()
     except Exception:
         return {}
-
     nodes = data.get("nodes", {})
     if not nodes:
         return {}
-
     results = _poll_results(sess, data["request_id"], len(nodes))
-
     iran_ok = iran_total = global_ok = global_total = 0
-    for node_id, node_info in nodes.items():
-        is_iran = _is_iran(node_info)
-        pings   = results.get(node_id)
-        node_ok = bool(
+    for nid, info in nodes.items():
+        is_iran = _is_iran(info)
+        pings   = results.get(nid)
+        ok      = bool(
             pings and pings[0]
             and any(p and p[0] == "OK" for p in pings[0])
         )
         if is_iran:
             iran_total += 1
-            if node_ok:
-                iran_ok += 1
+            if ok: iran_ok += 1
         else:
             global_total += 1
-            if node_ok:
-                global_ok += 1
-
+            if ok: global_ok += 1
     return {
         "iran_ok":      iran_ok > 0,
         "global_ok":    global_ok > 0,
@@ -118,45 +123,119 @@ def _check_ip(ip: str, max_nodes: int = 25) -> dict:
     }
 
 
-def _status_msg(ip: str, res: dict) -> str:
+# ── message text builders ─────────────────────────────────────────────────────
+
+def _ip_block(ip: str, res: dict) -> str:
     if not res:
-        return f"❓ <code>{ip}</code>\ncould not reach check-host.net"
-
-    iran_ok   = res["iran_ok"]
-    global_ok = res["global_ok"]
-    ir_n      = f"{res['iran_nodes']}/{res['total_iran']}"
-    gl_n      = f"{res['global_nodes']}/{res['total_global']}"
-
-    if iran_ok and global_ok:
-        status = "✅  Globally Accessible"
-    elif iran_ok and not global_ok:
-        status = "🔴  This IP is Iran Access Only"
-    elif not iran_ok and global_ok:
-        status = "⚠️  This IP is Restricted  ( Filter )"
+        return (
+            f"<code>  {ip}</code>\n"
+            f"  {E_ERR}  Could not reach check-host.net"
+        )
+    ir = res["iran_ok"]
+    gl = res["global_ok"]
+    ir_n = f"{res['iran_nodes']}/{res['total_iran']}"
+    gl_n = f"{res['global_nodes']}/{res['total_global']}"
+    if ir and gl:
+        icon, label = E_OK,   "Globally Accessible"
+    elif ir and not gl:
+        icon, label = E_RED,  "Iran Access Only"
+    elif not ir and gl:
+        icon, label = E_WARN, "Restricted  ·  Filter"
     else:
-        status = "🚫  Host Unreachable"
-
+        icon, label = E_ERR,  "Host Unreachable"
     return (
-        f"<b>{ip}</b>\n"
-        f"{status}\n"
-        f"🇮🇷 Iran: <code>{ir_n}</code>  🌐 Global: <code>{gl_n}</code>"
+        f"<code>  {ip}</code>\n"
+        f"  {icon}  {label}\n"
+        f"  {E_IRAN} <code>{ir_n}</code>    {E_GLOBE} <code>{gl_n}</code>"
     )
 
 
-# ── bot ───────────────────────────────────────────────────────────────────────
+def _menu_text(user: dict) -> str:
+    ips      = user.get("ips", [])
+    interval = user.get("interval", 60)
+    active   = user.get("active", True)
+    n        = len(ips)
+    ip_str   = f"{n} IP{'s' if n != 1 else ''}" if n else "—"
+    sch_str  = f"every  {interval} min" if active else "paused"
+    return (
+        f"{E_GEM}  <b>ForceCheck Monitor</b>\n"
+        f"<code>━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
+        f"<code>  Watching   {ip_str}</code>\n"
+        f"<code>  Schedule   {sch_str}</code>"
+    )
+
+
+# ── bot application ───────────────────────────────────────────────────────────
 
 def _build_app(token: str):
-    from telegram import Update
-    from telegram.ext import Application, CommandHandler, ContextTypes
+    from telegram import (
+        Update,
+        InlineKeyboardButton as Btn,
+        InlineKeyboardMarkup as Kbd,
+    )
+    from telegram.ext import (
+        Application, CommandHandler, CallbackQueryHandler,
+        MessageHandler, ContextTypes, filters,
+    )
 
     app = Application.builder().token(token).build()
 
-    def _get_user(uid: str) -> tuple:
+    # ── keyboard factories ────────────────────────
+
+    def _main_kb(user: dict) -> Kbd:
+        active = user.get("active", True)
+        toggle = ("⏸  Pause",   "pause") if active else ("▶️  Resume", "resume")
+        return Kbd([
+            [Btn("🔍  Check All",          callback_data="check")],
+            [Btn("📋  My IPs",             callback_data="list"),
+             Btn("➕  Add IP",             callback_data="add")],
+            [Btn("🗑  Remove IP",          callback_data="remove"),
+             Btn("⏱  Set Interval",       callback_data="interval")],
+            [Btn(toggle[0],               callback_data=toggle[1])],
+        ])
+
+    def _back_kb(also_check: bool = False) -> Kbd:
+        row = []
+        if also_check:
+            row.append(Btn("🔄  Check Again", callback_data="check"))
+        row.append(Btn("◀  Menu",            callback_data="menu"))
+        return Kbd([row])
+
+    def _cancel_kb() -> Kbd:
+        return Kbd([[Btn("✖  Cancel", callback_data="menu")]])
+
+    def _ip_select_kb(ips: list) -> Kbd:
+        rows = [[Btn(f"🗑  {ip}", callback_data=f"del:{ip}")] for ip in ips]
+        rows.append([Btn("◀  Cancel", callback_data="menu")])
+        return Kbd(rows)
+
+    # ── scheduling ────────────────────────────────
+
+    async def _job_check(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        uid   = ctx.job.data["uid"]
         store = _load()
-        user  = store["users"].setdefault(
-            uid, {"ips": [], "interval": 60, "active": True}
+        user  = store["users"].get(uid, {})
+        if not user.get("active", True) or not user.get("ips"):
+            return
+        ips   = user["ips"]
+        loop  = asyncio.get_running_loop()
+        tasks = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
+        res   = await asyncio.gather(*tasks)
+        div   = f"\n<code>{'─' * 27}</code>\n"
+        text  = (
+            f"{E_CLOCK}  <b>Scheduled Check</b>\n"
+            f"<code>━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
+            + div.join(_ip_block(ip, r) for ip, r in zip(ips, res))
         )
-        return store, user
+        try:
+            await ctx.bot.send_message(
+                chat_id=int(uid),
+                text=text,
+                parse_mode="HTML",
+                reply_markup=_back_kb(also_check=True),
+            )
+        except Exception:
+            pass
 
     def _schedule(jq, uid: str, interval: int) -> None:
         for j in jq.get_jobs_by_name(f"fc_{uid}"):
@@ -169,174 +248,275 @@ def _build_app(token: str):
             data={"uid": uid},
         )
 
-    # ── /start ───────────────────────────────────────
+    # ── helpers ───────────────────────────────────
 
-    async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    async def _show_menu(
+        update: Update,
+        ctx: ContextTypes.DEFAULT_TYPE,
+        edit: bool = False,
+    ) -> None:
+        uid = str(update.effective_user.id)
+        _, user = _get_user(uid)
+        text = _menu_text(user)
+        kb   = _main_kb(user)
+        if edit and update.callback_query:
+            await update.callback_query.edit_message_text(
+                text, parse_mode="HTML", reply_markup=kb
+            )
+        elif update.message:
+            await update.message.reply_html(text, reply_markup=kb)
+        elif update.callback_query:
+            await update.callback_query.message.reply_html(text, reply_markup=kb)
+
+    # ── /start ────────────────────────────────────
+
+    async def cmd_start(
+        update: Update, ctx: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         uid = str(update.effective_user.id)
         store, _ = _get_user(uid)
         _save(store)
-        await update.message.reply_html(
-            "👋 <b>ForceCheck Bot</b>\n\n"
-            "Monitor your IPs from global nodes.\n\n"
-            "<b>Commands:</b>\n"
-            "• /add &lt;ip&gt; — watch an IP\n"
-            "• /remove &lt;ip&gt; — stop watching\n"
-            "• /list — show watched IPs\n"
-            "• /check — check all IPs now\n"
-            "• /interval &lt;minutes&gt; — auto-check interval\n"
-            "• /pause — pause auto checks\n"
-            "• /resume — resume auto checks"
-        )
+        ctx.user_data.clear()
+        await _show_menu(update, ctx)
 
-    # ── /add ─────────────────────────────────────────
+    # ── free text handler ─────────────────────────
 
-    async def cmd_add(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        uid = str(update.effective_user.id)
-        if not ctx.args:
-            await update.message.reply_text("Usage: /add <ip>")
-            return
-        ip = ctx.args[0].strip()
-        if not _IP_RE.match(ip):
-            await update.message.reply_text(f"❌ Invalid IP address: {ip}")
-            return
-        store, user = _get_user(uid)
-        if ip in user["ips"]:
-            await update.message.reply_html(f"Already monitoring <code>{ip}</code>")
-            return
-        if len(user["ips"]) >= 20:
-            await update.message.reply_text("Maximum 20 IPs per user.")
-            return
-        user["ips"].append(ip)
-        _save(store)
-        await update.message.reply_html(f"✅ Now monitoring <code>{ip}</code>")
+    async def handle_text(
+        update: Update, ctx: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        uid   = str(update.effective_user.id)
+        text  = update.message.text.strip()
+        state = ctx.user_data.get("awaiting")
 
-    # ── /remove ──────────────────────────────────────
-
-    async def cmd_remove(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        uid = str(update.effective_user.id)
-        if not ctx.args:
-            await update.message.reply_text("Usage: /remove <ip>")
-            return
-        ip = ctx.args[0].strip()
-        store, user = _get_user(uid)
-        if ip not in user.get("ips", []):
-            await update.message.reply_text(f"Not found: {ip}")
-            return
-        user["ips"].remove(ip)
-        _save(store)
-        await update.message.reply_html(f"🗑 Removed <code>{ip}</code>")
-
-    # ── /list ────────────────────────────────────────
-
-    async def cmd_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        uid = str(update.effective_user.id)
-        store, user = _get_user(uid)
-        ips      = user.get("ips", [])
-        interval = user.get("interval", 60)
-        active   = user.get("active", True)
-        state    = "▶ active" if active else "⏸ paused"
-        if not ips:
-            await update.message.reply_text("No IPs monitored. Use /add <ip>")
-            return
-        lines = [f"<b>Monitored IPs</b> — {state} — every {interval} min\n"]
-        for i, ip in enumerate(ips, 1):
-            lines.append(f"{i}. <code>{ip}</code>")
-        await update.message.reply_html("\n".join(lines))
-
-    # ── /check ───────────────────────────────────────
-
-    async def cmd_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        import asyncio
-        uid = str(update.effective_user.id)
-        store, user = _get_user(uid)
-        ips = user.get("ips", [])
-        if not ips:
-            await update.message.reply_text("No IPs to check. Use /add <ip>")
-            return
-        await update.message.reply_text(f"🔍 Checking {len(ips)} IP(s)...")
-        loop = asyncio.get_event_loop()
-        for ip in ips:
-            res  = await loop.run_in_executor(None, _check_ip, ip)
-            text = _status_msg(ip, res)
-            await update.message.reply_html(text)
-
-    # ── /interval ────────────────────────────────────
-
-    async def cmd_interval(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        uid = str(update.effective_user.id)
-        if not ctx.args:
-            await update.message.reply_text("Usage: /interval <minutes>  (min: 5)")
-            return
-        try:
-            mins = int(ctx.args[0])
-        except ValueError:
-            await update.message.reply_text("Please provide a number of minutes.")
-            return
-        if mins < 5:
-            await update.message.reply_text("Minimum interval is 5 minutes.")
-            return
-        store, user = _get_user(uid)
-        user["interval"] = mins
-        _save(store)
-        if user.get("active", True) and user.get("ips"):
-            _schedule(ctx.job_queue, uid, mins)
-        await update.message.reply_html(
-            f"✅ Auto-check every <b>{mins} minutes</b>"
-        )
-
-    # ── /pause ───────────────────────────────────────
-
-    async def cmd_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        uid = str(update.effective_user.id)
-        store, user = _get_user(uid)
-        user["active"] = False
-        _save(store)
-        for j in ctx.job_queue.get_jobs_by_name(f"fc_{uid}"):
-            j.schedule_removal()
-        await update.message.reply_text(
-            "⏸ Auto-checks paused. Use /resume to restart."
-        )
-
-    # ── /resume ──────────────────────────────────────
-
-    async def cmd_resume(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        uid = str(update.effective_user.id)
-        store, user = _get_user(uid)
-        user["active"] = True
-        interval = user.get("interval", 60)
-        _save(store)
-        if user.get("ips"):
-            _schedule(ctx.job_queue, uid, interval)
-        await update.message.reply_html(
-            f"▶ Auto-checks resumed — every <b>{interval} min</b>"
-        )
-
-    # ── scheduled job ────────────────────────────────
-
-    async def _job_check(ctx: ContextTypes.DEFAULT_TYPE):
-        import asyncio
-        uid   = ctx.job.data["uid"]
-        store = _load()
-        user  = store["users"].get(uid, {})
-        if not user.get("active", True):
-            return
-        ips = user.get("ips", [])
-        if not ips:
-            return
-        loop = asyncio.get_event_loop()
-        for ip in ips:
-            res  = await loop.run_in_executor(None, _check_ip, ip)
-            text = _status_msg(ip, res)
-            try:
-                await ctx.bot.send_message(
-                    chat_id=int(uid), text=text, parse_mode="HTML"
+        # ── waiting for an IP ──────────────────────
+        if state == _S_IP:
+            ctx.user_data.pop("awaiting", None)
+            if not _IP_RE.match(text):
+                await update.message.reply_html(
+                    f"{E_ERR}  <b>Invalid IP address</b>\n\n"
+                    f"<code>{text}</code>\n\n"
+                    f"Send a valid IPv4 address:\n"
+                    f"<code>  e.g.  1 . 2 . 3 . 4</code>",
+                    reply_markup=_cancel_kb(),
                 )
-            except Exception:
-                pass
+                return
+            store, user = _get_user(uid)
+            if text in user["ips"]:
+                await update.message.reply_html(
+                    f"{E_WARN}  Already monitoring  <code>{text}</code>",
+                    reply_markup=_back_kb(),
+                )
+                return
+            if len(user["ips"]) >= 20:
+                await update.message.reply_html(
+                    f"{E_ERR}  Maximum 20 IPs per user.",
+                    reply_markup=_back_kb(),
+                )
+                return
+            user["ips"].append(text)
+            _save(store)
+            if user.get("active", True):
+                _schedule(ctx.job_queue, uid, user.get("interval", 60))
+            await update.message.reply_html(
+                f"{E_OK}  <b>Added</b>  <code>{text}</code>\n\n"
+                f"{E_CLOCK}  Next auto-check in  <b>{user.get('interval', 60)} min</b>",
+                reply_markup=Kbd([
+                    [Btn("➕  Add Another", callback_data="add"),
+                     Btn("◀  Menu",        callback_data="menu")],
+                ]),
+            )
 
-    # ── post_init: restore schedules ─────────────────
+        # ── waiting for interval ──────────────────
+        elif state == _S_INTERVAL:
+            ctx.user_data.pop("awaiting", None)
+            try:
+                mins = int(text)
+            except ValueError:
+                await update.message.reply_html(
+                    f"{E_ERR}  Please send a <b>number</b> of minutes.",
+                    reply_markup=_cancel_kb(),
+                )
+                return
+            if mins < 5:
+                await update.message.reply_html(
+                    f"{E_WARN}  Minimum interval is  <b>5 minutes</b>.",
+                    reply_markup=Kbd([
+                        [Btn("⏱  Try Again", callback_data="interval"),
+                         Btn("◀  Menu",     callback_data="menu")],
+                    ]),
+                )
+                return
+            store, user = _get_user(uid)
+            user["interval"] = mins
+            _save(store)
+            if user.get("active", True) and user.get("ips"):
+                _schedule(ctx.job_queue, uid, mins)
+            await update.message.reply_html(
+                f"{E_OK}  Interval set to  <b>{mins} minutes</b>",
+                reply_markup=_back_kb(),
+            )
 
-    async def _post_init(application):
+        # ── no active state: show menu ────────────
+        else:
+            await _show_menu(update, ctx)
+
+    # ── callback query handler ────────────────────
+
+    async def handle_cb(
+        update: Update, ctx: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        query = update.callback_query
+        await query.answer()
+        uid  = str(update.effective_user.id)
+        data = query.data
+
+        # menu
+        if data == "menu":
+            ctx.user_data.pop("awaiting", None)
+            await _show_menu(update, ctx, edit=True)
+
+        # check all
+        elif data == "check":
+            _, user = _get_user(uid)
+            ips = user.get("ips", [])
+            if not ips:
+                await query.edit_message_text(
+                    f"{E_WARN}  <b>No IPs to check.</b>\n\nAdd some IPs first.",
+                    parse_mode="HTML",
+                    reply_markup=Kbd([
+                        [Btn("➕  Add IP", callback_data="add"),
+                         Btn("◀  Menu",  callback_data="menu")],
+                    ]),
+                )
+                return
+            n = len(ips)
+            await query.edit_message_text(
+                f"🔍  <b>Checking {n} IP{'s' if n > 1 else ''}…</b>\n\n"
+                f"<code>  Please wait · 30–60 seconds</code>",
+                parse_mode="HTML",
+            )
+            loop  = asyncio.get_running_loop()
+            tasks = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
+            res   = await asyncio.gather(*tasks)
+            div   = f"\n<code>{'─' * 27}</code>\n"
+            text  = (
+                f"🔍  <b>Check Results</b>\n"
+                f"<code>━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
+                + div.join(_ip_block(ip, r) for ip, r in zip(ips, res))
+            )
+            await query.edit_message_text(
+                text, parse_mode="HTML",
+                reply_markup=_back_kb(also_check=True),
+            )
+
+        # list IPs
+        elif data == "list":
+            _, user = _get_user(uid)
+            ips      = user.get("ips", [])
+            interval = user.get("interval", 60)
+            active   = user.get("active", True)
+            if not ips:
+                await query.edit_message_text(
+                    f"{E_WARN}  <b>No IPs monitored.</b>",
+                    parse_mode="HTML",
+                    reply_markup=Kbd([
+                        [Btn("➕  Add IP", callback_data="add"),
+                         Btn("◀  Menu",  callback_data="menu")],
+                    ]),
+                )
+                return
+            st    = "▶  Active" if active else "⏸  Paused"
+            lines = [
+                f"{E_GEM}  <b>My IPs</b>  ·  {st}  ·  every {interval} min",
+                f"<code>━━━━━━━━━━━━━━━━━━━━━━━━━</code>",
+                "",
+            ] + [f"<code>  {i}.  {ip}</code>" for i, ip in enumerate(ips, 1)]
+            await query.edit_message_text(
+                "\n".join(lines),
+                parse_mode="HTML",
+                reply_markup=Kbd([
+                    [Btn("➕  Add",    callback_data="add"),
+                     Btn("🗑  Remove", callback_data="remove"),
+                     Btn("◀  Menu",   callback_data="menu")],
+                ]),
+            )
+
+        # add IP — prompt for text input
+        elif data == "add":
+            ctx.user_data["awaiting"] = _S_IP
+            await query.edit_message_text(
+                f"➕  <b>Add an IP to monitor</b>\n"
+                f"<code>━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
+                f"Send the IP address:\n"
+                f"<code>  e.g.  1 . 2 . 3 . 4</code>",
+                parse_mode="HTML",
+                reply_markup=_cancel_kb(),
+            )
+
+        # remove — show IP list as buttons
+        elif data == "remove":
+            _, user = _get_user(uid)
+            ips = user.get("ips", [])
+            if not ips:
+                await query.edit_message_text(
+                    f"{E_WARN}  <b>No IPs to remove.</b>",
+                    parse_mode="HTML",
+                    reply_markup=_back_kb(),
+                )
+                return
+            await query.edit_message_text(
+                f"🗑  <b>Select IP to remove:</b>",
+                parse_mode="HTML",
+                reply_markup=_ip_select_kb(ips),
+            )
+
+        elif data.startswith("del:"):
+            ip_del       = data[4:]
+            store, user  = _get_user(uid)
+            if ip_del in user["ips"]:
+                user["ips"].remove(ip_del)
+                _save(store)
+                await query.edit_message_text(
+                    f"{E_OK}  <b>Removed</b>  <code>{ip_del}</code>",
+                    parse_mode="HTML",
+                    reply_markup=Kbd([
+                        [Btn("🗑  Remove Another", callback_data="remove"),
+                         Btn("◀  Menu",           callback_data="menu")],
+                    ]),
+                )
+            else:
+                await _show_menu(update, ctx, edit=True)
+
+        # interval — prompt for text input
+        elif data == "interval":
+            _, user = _get_user(uid)
+            ctx.user_data["awaiting"] = _S_INTERVAL
+            await query.edit_message_text(
+                f"{E_CLOCK}  <b>Set Check Interval</b>\n"
+                f"<code>━━━━━━━━━━━━━━━━━━━━━━━━━</code>\n\n"
+                f"Current:  <b>every {user.get('interval', 60)} minutes</b>\n\n"
+                f"Send the new interval in minutes:\n"
+                f"<code>  minimum  5</code>",
+                parse_mode="HTML",
+                reply_markup=_cancel_kb(),
+            )
+
+        # pause / resume
+        elif data in ("pause", "resume"):
+            store, user = _get_user(uid)
+            active      = (data == "resume")
+            user["active"] = active
+            _save(store)
+            if active and user.get("ips"):
+                _schedule(ctx.job_queue, uid, user.get("interval", 60))
+            else:
+                for j in ctx.job_queue.get_jobs_by_name(f"fc_{uid}"):
+                    j.schedule_removal()
+            await _show_menu(update, ctx, edit=True)
+
+    # ── post_init: restore schedules on startup ───
+
+    async def _post_init(application) -> None:
         store = _load()
         for uid, user in store["users"].items():
             if user.get("active", True) and user.get("ips"):
@@ -347,18 +527,14 @@ def _build_app(token: str):
                 )
 
     app.post_init = _post_init
-
-    app.add_handler(CommandHandler("start",    cmd_start))
-    app.add_handler(CommandHandler("add",      cmd_add))
-    app.add_handler(CommandHandler("remove",   cmd_remove))
-    app.add_handler(CommandHandler("list",     cmd_list))
-    app.add_handler(CommandHandler("check",    cmd_check))
-    app.add_handler(CommandHandler("interval", cmd_interval))
-    app.add_handler(CommandHandler("pause",    cmd_pause))
-    app.add_handler(CommandHandler("resume",   cmd_resume))
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CallbackQueryHandler(handle_cb))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     return app
 
+
+# ── public API ────────────────────────────────────────────────────────────────
 
 def run(token: str) -> None:
     app = _build_app(token)
@@ -367,15 +543,15 @@ def run(token: str) -> None:
 
 
 def main() -> None:
+    import argparse
     from .colors import G, R, Y, C, N
 
-    import argparse
     ap = argparse.ArgumentParser(
         prog="bot!",
         description="ForceCheck Telegram monitoring bot",
         epilog=(
             "Setup:\n"
-            "  bot! --token <BOT_TOKEN>\n"
+            "  bot! --token <TOKEN>\n"
             "  or:  fcheck  → 8 (Bot Settings)\n\n"
             "Get a token from @BotFather on Telegram."
         ),
@@ -399,9 +575,9 @@ def main() -> None:
 
     if args.setup or not token:
         print(f"\n  {C}ForceCheck Bot Setup{N}\n")
-        print(f"  {R}Get a token from @BotFather on Telegram first.{N}")
+        print(f"  {R}Get a token from @BotFather on Telegram.{N}")
         try:
-            token = input(f"\n  Bot token: ").strip()
+            token = input("\n  Bot token: ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             return
