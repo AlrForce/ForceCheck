@@ -179,6 +179,199 @@ def _run_uninstall() -> None:
     sys.exit(0)
 
 
+def _manage_systemd() -> None:
+    import os, subprocess, sysconfig
+
+    w        = _W
+    svc_name = "forcecheck-bot"
+    svc_path = f"/etc/systemd/system/{svc_name}.service"
+
+    if not os.path.isdir("/etc/systemd/system"):
+        print(f"\n  {Y}systemd is not available on this system.{N}")
+        print(f"  {DIM}This feature requires Linux with systemd (Ubuntu, Debian, CentOS …){N}\n")
+        return
+
+    scripts_dir = sysconfig.get_path("scripts")
+    bot_exe     = os.path.join(scripts_dir, "bot!")
+
+    def _cmd(c: str):
+        r = subprocess.run(c, shell=True, capture_output=True, text=True)
+        return r.returncode, r.stdout.strip(), r.stderr.strip()
+
+    def _is_installed() -> bool:
+        return os.path.exists(svc_path)
+
+    def _is_active() -> bool:
+        code, _, _ = _cmd(f"systemctl is-active {svc_name}")
+        return code == 0
+
+    def _is_enabled() -> bool:
+        code, _, _ = _cmd(f"systemctl is-enabled {svc_name}")
+        return code == 0
+
+    def _svc_content() -> str:
+        return (
+            "[Unit]\n"
+            "Description=ForceCheck Telegram Bot\n"
+            "After=network.target\n"
+            "Wants=network-online.target\n"
+            "\n"
+            "[Service]\n"
+            "Type=simple\n"
+            f"ExecStart={bot_exe}\n"
+            "Restart=always\n"
+            "RestartSec=10\n"
+            "StandardOutput=journal\n"
+            "StandardError=journal\n"
+            "\n"
+            "[Install]\n"
+            "WantedBy=multi-user.target\n"
+        )
+
+    while True:
+        installed = _is_installed()
+        active    = _is_active() if installed else False
+        enabled   = _is_enabled() if installed else False
+
+        print(f"\n  {C}╔{'═' * w}╗")
+        print(f"  ║{'Systemd  Service':^{w}}║")
+        print(f"  ╚{'═' * w}╝{N}\n")
+
+        print(f"  {DIM}Service  :{N}  {svc_name}")
+        print(f"  {DIM}Unit     :{N}  {svc_path}")
+        print(f"  {DIM}Exec     :{N}  {bot_exe}")
+
+        if not installed:
+            print(f"  {DIM}Status   :{N}  {Y}Not installed{N}")
+        elif active:
+            print(f"  {DIM}Status   :{N}  {G}Active  (running){N}")
+        else:
+            print(f"  {DIM}Status   :{N}  {R}Inactive{N}")
+
+        if installed:
+            print(f"  {DIM}Auto-start:{N} {'Yes  (starts on boot)' if enabled else 'No'}")
+
+        print(f"\n  {DIM}{'─' * w}{N}")
+
+        opts: dict = {}
+        if not installed:
+            print(f"  {B}1{N}  Install & enable service  {DIM}(auto-start on boot){N}")
+            opts["1"] = "install"
+        else:
+            print(f"  {B}1{N}  Reinstall service")
+            opts["1"] = "install"
+            if active:
+                print(f"  {B}2{N}  Stop service")
+                opts["2"] = "stop"
+            else:
+                print(f"  {B}2{N}  Start service")
+                opts["2"] = "start"
+            if enabled:
+                print(f"  {B}3{N}  Disable auto-start on boot")
+                opts["3"] = "disable"
+            else:
+                print(f"  {B}3{N}  Enable auto-start on boot")
+                opts["3"] = "enable"
+            print(f"  {B}4{N}  View service logs  {DIM}(last 30 lines){N}")
+            opts["4"] = "logs"
+            print(f"  {R}5{N}  Uninstall service")
+            opts["5"] = "uninstall"
+
+        print(f"  {DIM}0  Back{N}")
+
+        try:
+            sub = input(f"\n  {C}Select{N}: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+
+        if sub == "0":
+            return
+
+        action = opts.get(sub)
+
+        if action == "install":
+            try:
+                with open(svc_path, "w") as f:
+                    f.write(_svc_content())
+                _cmd("systemctl daemon-reload")
+                _cmd(f"systemctl enable {svc_name}")
+                code, _, err = _cmd(f"systemctl restart {svc_name}")
+                if code == 0:
+                    print(f"\n  {G}Service installed, enabled, and started.{N}")
+                    print(f"  {DIM}Use option 4 to view live logs.{N}")
+                else:
+                    print(f"\n  {Y}Service installed — but failed to start:{N} {err or 'unknown error'}")
+                    print(f"  {DIM}Check token via option 1 in Bot Settings, then try again.{N}")
+            except PermissionError:
+                print(f"\n  {R}Permission denied — run fcheck as root:{N}  sudo fcheck")
+            except Exception as e:
+                print(f"\n  {R}Error:{N} {e}")
+
+        elif action == "stop":
+            code, _, err = _cmd(f"systemctl stop {svc_name}")
+            if code == 0:
+                print(f"\n  {Y}Service stopped.{N}")
+            else:
+                print(f"\n  {R}Error:{N} {err}")
+
+        elif action == "start":
+            code, _, err = _cmd(f"systemctl start {svc_name}")
+            if code == 0:
+                print(f"\n  {G}Service started.{N}")
+            else:
+                print(f"\n  {R}Error:{N} {err}")
+
+        elif action == "disable":
+            code, _, err = _cmd(f"systemctl disable {svc_name}")
+            if code == 0:
+                print(f"\n  {Y}Auto-start disabled — service will not restart on reboot.{N}")
+            else:
+                print(f"\n  {R}Error:{N} {err}")
+
+        elif action == "enable":
+            code, _, err = _cmd(f"systemctl enable {svc_name}")
+            if code == 0:
+                print(f"\n  {G}Auto-start enabled — service will start on every reboot.{N}")
+            else:
+                print(f"\n  {R}Error:{N} {err}")
+
+        elif action == "logs":
+            print(f"\n  {DIM}Last 30 log lines:{N}\n")
+            _, out, _ = _cmd(f"journalctl -u {svc_name} -n 30 --no-pager")
+            print(out if out else f"  {Y}No logs found.{N}")
+            print()
+            try:
+                input(f"  {DIM}Press Enter to continue ...{N}")
+            except (EOFError, KeyboardInterrupt):
+                print()
+
+        elif action == "uninstall":
+            print(f"\n  {Y}This will stop and permanently remove the service.{N}")
+            try:
+                confirm = input(f"  {R}Type 'yes' to confirm:{N} ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                continue
+            if confirm == "yes":
+                try:
+                    _cmd(f"systemctl stop {svc_name}")
+                    _cmd(f"systemctl disable {svc_name}")
+                    if os.path.exists(svc_path):
+                        os.remove(svc_path)
+                    _cmd("systemctl daemon-reload")
+                    print(f"\n  {G}Service removed successfully.{N}")
+                except PermissionError:
+                    print(f"\n  {R}Permission denied — run fcheck as root:{N}  sudo fcheck")
+                except Exception as e:
+                    print(f"\n  {R}Error:{N} {e}")
+            else:
+                print(f"\n  {Y}Cancelled.{N}")
+
+        else:
+            print(f"\n  {R}Invalid choice.{N}")
+
+
 def _bot_settings() -> None:
     import json
     from pathlib import Path
@@ -223,11 +416,24 @@ def _bot_settings() -> None:
         else:
             print(f"  {DIM}Access  :{N} {Y}Open to everyone{N}")
 
+        import os as _os
+        _svc = "/etc/systemd/system/forcecheck-bot.service"
+        if _os.path.isdir("/etc/systemd/system"):
+            if _os.path.exists(_svc):
+                import subprocess as _sp
+                _active = _sp.run("systemctl is-active forcecheck-bot",
+                                  shell=True, capture_output=True).returncode == 0
+                _svc_str = f"{G}Running (systemd){N}" if _active else f"{R}Stopped  (installed){N}"
+            else:
+                _svc_str = f"{DIM}Not installed{N}"
+            print(f"  {DIM}Service :{N} {_svc_str}")
+
         print(f"\n  {DIM}{'─' * w}{N}")
         print(f"  {B}1{N}  Set / change bot token")
         print(f"  {B}2{N}  Show setup instructions")
         print(f"  {B}3{N}  Start bot (this terminal)")
         print(f"  {B}4{N}  Manage allowed chat IDs  {DIM}(private mode){N}")
+        print(f"  {B}5{N}  Run as system service     {DIM}(systemd — permanent){N}")
         print(f"  {DIM}0  Back{N}")
 
         try:
@@ -367,6 +573,9 @@ def _bot_settings() -> None:
 
                 else:
                     print(f"\n  {R}Invalid choice.{N}")
+
+        elif sub == "5":
+            _manage_systemd()
 
         else:
             print(f"\n  {R}Invalid choice.{N}")
