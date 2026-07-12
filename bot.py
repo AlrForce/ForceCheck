@@ -13,6 +13,11 @@ import sys
 import time
 from pathlib import Path
 
+try:
+    from . import __version__ as _VER
+except ImportError:
+    _VER = "?"
+
 STORE_PATH = Path.home() / ".forcecheck_bot.json"
 CHECK_HOST = "https://check-host.net"
 _IP_RE     = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
@@ -368,7 +373,7 @@ def _about_text() -> str:
         f"<code>0x5a8AB785F17006495323F00a62473e638ebE008b</code>\n\n"
 
         f"{_HR}\n"
-        f"{E_RELOAD}  <i>Powered by AlrForce</i>"
+        f"{E_RELOAD}  <i>Powered by AlrForce  ·  v{_VER}</i>"
     )
 
 
