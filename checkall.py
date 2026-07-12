@@ -132,15 +132,30 @@ def _check_http(host: str, max_nodes: int = 10) -> dict:
 
     for node in nodes:
         res = results.get(node)
-        if not res or not res[0] or res[0][0] != "OK":
+        if not res or not res[0] or res[0][0] != 1:
             continue
-        entry = res[0]
-        code  = entry[1] if len(entry) > 1 else 0
-        t_sec = entry[2] if len(entry) > 2 else None
-        ok  += 1
+        entry  = res[0]
+        t_sec  = entry[1] if len(entry) > 1 else None
+        code_raw = entry[2] if len(entry) > 2 else None
+        code = 0
+        if isinstance(code_raw, int):
+            code = code_raw
+        elif code_raw is not None:
+            for part in str(code_raw).split():
+                try:
+                    n = int(part)
+                    if 100 <= n <= 599:
+                        code = n
+                        break
+                except ValueError:
+                    continue
+        ok += 1
         codes[code] = codes.get(code, 0) + 1
         if t_sec is not None:
-            times_ms.append(t_sec * 1000)
+            try:
+                times_ms.append(float(t_sec) * 1000)
+            except (TypeError, ValueError):
+                pass
 
     return {
         "ok":       ok,

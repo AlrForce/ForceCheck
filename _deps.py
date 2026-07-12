@@ -3,7 +3,6 @@ import subprocess
 
 _DEPS = [
     ("requests", "requests>=2.28"),
-    ("bs4",      "beautifulsoup4>=4.11"),
 ]
 
 
