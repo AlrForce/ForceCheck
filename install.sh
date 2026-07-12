@@ -64,7 +64,7 @@ ok "$PKG_DIR"
 
 # ── دانلود فایل‌ها ────────────────────────────────────────────────────────
 step "Downloading ForceCheck"
-PYFILES="__init__.py ansinfo.py bgp.py checkall.py cli.py colors.py _deps.py http.py ping.py trace.py whois.py"
+PYFILES="__init__.py ansinfo.py bgp.py bot.py checkall.py cli.py colors.py _deps.py http.py ping.py trace.py whois.py"
 TOTAL=$(echo $PYFILES | wc -w)
 DONE=0
 FAILED=0
@@ -82,10 +82,10 @@ done
 # ── نصب وابستگی‌ها ───────────────────────────────────────────────────────
 step "Installing dependencies"
 PIP_ROOT_USER_ACTION=ignore \
-"$PY" -m pip install requests beautifulsoup4 -q 2>/dev/null || \
+"$PY" -m pip install requests "python-telegram-bot[job-queue]>=20.0" -q 2>/dev/null || \
 PIP_ROOT_USER_ACTION=ignore \
-"$PY" -m pip install requests beautifulsoup4 -q --break-system-packages 2>/dev/null
-ok "requests  +  beautifulsoup4"
+"$PY" -m pip install requests "python-telegram-bot[job-queue]>=20.0" -q --break-system-packages 2>/dev/null
+ok "requests  +  python-telegram-bot"
 
 # ── ساخت دستورها ─────────────────────────────────────────────────────────
 step "Creating commands"
@@ -105,12 +105,13 @@ create_cmd "http!"     "http"
 create_cmd "info!"     "ansinfo"
 create_cmd "domain!"   "whois"
 create_cmd "checkall!" "checkall"
+create_cmd "bot!"      "bot"
 create_cmd "fcheck"    "cli"
 
 # ── پایان ────────────────────────────────────────────────────────────────
 printf "\n${C}"
 printf "  ╔%s╗\n" "$(printf '═%.0s' $(seq 1 $W))"
 printf "  ║%s║\n" "$(printf '%-*s' $W '  Installation complete!')"
-printf "  ║%s║\n" "$(printf '%-*s' $W "  Run 'fcheck' to open the interactive menu.")"
+printf "  ║%s║\n" "$(printf '%-*s' $W "  Run 'fcheck' to open menu  |  'bot!' to start Telegram bot.")"
 printf "  ╚%s╝\n" "$(printf '═%.0s' $(seq 1 $W))"
 printf "${N}\n"

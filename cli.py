@@ -24,13 +24,14 @@ BANNER = (
 )
 
 _ITEMS = [
-    ("ping!",     "distributed ping",                "Host or IP",          None),
-    ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",  None),
-    ("trace!",    "distributed traceroute",          "Host or IP",          "nodes"),
-    ("http!",     "HTTP check from global nodes",    "URL or host",         None),
+    ("ping!",     "distributed ping",                "Host or IP",           None),
+    ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",   None),
+    ("trace!",    "distributed traceroute",          "Host or IP",           "nodes"),
+    ("http!",     "HTTP check from global nodes",    "URL or host",          None),
     ("info!",     "IP / ASN WHOIS via RDAP",         "IP, hostname, or ASN", None),
-    ("domain!",   "domain availability & WHOIS",    "Domain name",          None),
-    ("checkall!", "run all checks in parallel",      "Host or IP",          None),
+    ("domain!",   "domain availability & WHOIS",     "Domain name",          None),
+    ("checkall!", "run all checks in parallel",      "Host or IP",           None),
+    ("bot!",      "Telegram monitor bot",            None,                   None),
 ]
 
 
@@ -177,6 +178,113 @@ def _run_uninstall() -> None:
     sys.exit(0)
 
 
+def _bot_settings() -> None:
+    import json
+    from pathlib import Path
+
+    store_path = Path.home() / ".forcecheck_bot.json"
+
+    def _load_bs() -> dict:
+        if store_path.exists():
+            try:
+                return json.loads(store_path.read_text())
+            except Exception:
+                pass
+        return {"bot_token": "", "users": {}}
+
+    def _save_bs(d: dict) -> None:
+        store_path.write_text(json.dumps(d, indent=2))
+
+    w = _W
+
+    while True:
+        data  = _load_bs()
+        token = data.get("bot_token", "")
+        users = data.get("users", {})
+
+        print(f"\n  {C}╔{'═' * w}╗")
+        print(f"  ║{'Bot Settings':^{w}}║")
+        print(f"  ╚{'═' * w}╝{N}\n")
+
+        if token:
+            masked = f"{token[:10]}...{token[-4:]}" if len(token) > 14 else "***"
+            print(f"  {DIM}Token   :{N} {G}{masked}{N}")
+        else:
+            print(f"  {DIM}Token   :{N} {Y}not configured{N}")
+
+        if users:
+            total_ips = sum(len(u.get("ips", [])) for u in users.values())
+            print(f"  {DIM}Users   :{N} {len(users)}  ({total_ips} IPs monitored)")
+
+        print(f"\n  {DIM}{'─' * w}{N}")
+        print(f"  {B}1{N}  Set / change bot token")
+        print(f"  {B}2{N}  Show setup instructions")
+        print(f"  {B}3{N}  Start bot (this terminal)")
+        print(f"  {DIM}0  Back{N}")
+
+        try:
+            sub = input(f"\n  {C}Select{N}: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+
+        if sub == "0":
+            return
+
+        elif sub == "1":
+            print(f"\n  {DIM}Get a token from @BotFather on Telegram.{N}")
+            try:
+                new_token = input(f"  Paste token: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                continue
+            if not new_token:
+                print(f"\n  {Y}No token entered.{N}")
+            else:
+                data["bot_token"] = new_token
+                _save_bs(data)
+                print(f"\n  {G}Token saved.{N}")
+
+        elif sub == "2":
+            print(f"\n  {B}Setup Instructions{N}")
+            print(f"  {'─' * w}")
+            print(f"  1.  Open Telegram and message @BotFather")
+            print(f"  2.  Send /newbot and follow the prompts")
+            print(f"  3.  Copy the API token provided")
+            print(f"  4.  Come back here → option 1 → paste token")
+            print(f"  5.  Start the bot: option 3 (or run {C}bot!{N} in terminal)")
+            print()
+            print(f"  {DIM}Bot commands your users can send:{N}")
+            print(f"    /add <ip>         watch an IP")
+            print(f"    /remove <ip>      stop watching")
+            print(f"    /list             show IPs and interval")
+            print(f"    /check            run check now")
+            print(f"    /interval <min>   set auto-check interval")
+            print(f"    /pause / /resume  pause or resume")
+            print(f"  {'─' * w}")
+
+        elif sub == "3":
+            token = data.get("bot_token", "")
+            if not token:
+                print(f"\n  {R}No token configured. Select option 1 first.{N}")
+                continue
+            try:
+                import telegram  # noqa: F401
+            except ImportError:
+                print(f"\n  {R}Missing:{N} python-telegram-bot")
+                print(f"  Install: {C}pip install 'python-telegram-bot[job-queue]>=20.0'{N}")
+                continue
+            print(f"\n  {G}Starting bot ...{N}  {DIM}(Ctrl+C to stop){N}\n")
+            from .bot import run as _run_bot
+            try:
+                _run_bot(token)
+            except KeyboardInterrupt:
+                print(f"\n  {Y}Bot stopped.{N}")
+
+        else:
+            print(f"\n  {R}Invalid choice.{N}")
+
+
 def _run_update() -> None:
     import os, sysconfig, urllib.request
 
@@ -226,8 +334,8 @@ def _run_update() -> None:
     pkg_dir  = os.path.join(site, "forcecheck")
     raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
     pyfiles  = [
-        "__init__.py", "bgp.py", "checkall.py", "cli.py",
-        "colors.py", "_deps.py", "ansinfo.py", "http.py", "ping.py",
+        "__init__.py", "ansinfo.py", "bgp.py", "bot.py", "checkall.py",
+        "cli.py", "colors.py", "_deps.py", "http.py", "ping.py",
         "trace.py", "whois.py",
     ]
 
@@ -257,6 +365,12 @@ def _run_update() -> None:
 
 def _run(choice: int) -> None:
     cmd_name, _, target_label, has_nodes = _ITEMS[choice - 1]
+
+    if target_label is None:
+        if choice == 8:
+            _bot_settings()
+        return
+
     print(f"\n  {B}{cmd_name}{N}")
 
     target = _ask_host(target_label) if choice in (1, 4) else _ask(target_label)
