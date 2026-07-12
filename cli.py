@@ -227,7 +227,7 @@ def _run_update() -> None:
     raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
     pyfiles  = [
         "__init__.py", "bgp.py", "checkall.py", "cli.py",
-        "colors.py", "_deps.py", "http.py", "ping.py",
+        "colors.py", "_deps.py", "domain.py", "http.py", "ping.py",
         "trace.py", "whois.py",
     ]
 
