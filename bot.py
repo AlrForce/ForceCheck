@@ -17,6 +17,28 @@ STORE_PATH = Path.home() / ".forcecheck_bot.json"
 CHECK_HOST = "https://check-host.net"
 _IP_RE     = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
 
+# ── premium animated emoji (message text only — buttons use plain Unicode) ────
+
+def _em(eid: str, fb: str) -> str:
+    return f'<tg-emoji emoji-id="{eid}">{fb}</tg-emoji>'
+
+E_OK     = _em("5861786805988234706", "✅")
+E_ERR    = _em("5040042498634810056", "❌")
+E_WARN   = _em("5039665997506675838", "⚠️")
+E_RED    = _em("5915490338323042920", "🔴")
+E_GLOBE  = _em("5188381825701021648", "🌐")
+E_GEM    = _em("5364040533498932357", "💎")
+E_CLOCK  = _em("5328274090262275771", "🕐")
+E_IRAN   = _em("6008155035123327966", "🇮🇷")
+E_SAT    = _em("5949501312461707000", "📡")
+E_SEARCH = _em("5039649904264217620", "🔍")
+E_RELOAD = _em("5978846612087114958", "🔄")
+E_ADD    = _em("5298954496016138169", "➕")
+E_TRASH  = _em("5039614900280754969", "🗑")
+E_PAUSE  = _em("5042036407137207122", "⏸️")
+E_PLAY   = _em("5039753786638205957", "▶️")
+E_BACK   = _em("5248966320845768373", "◀️")
+
 # ── awaiting-state keys ───────────────────────────────────────────────────────
 _S_IP       = "ip"
 _S_INTERVAL = "interval"
@@ -119,9 +141,9 @@ def _menu_text(user: dict) -> str:
     active   = user.get("active", True)
     n        = len(ips)
     ip_str   = f"{n} IP{'s' if n != 1 else ''}" if n else "none"
-    st       = "▶  Active" if active else "⏸  Paused"
+    st       = f"{E_PLAY}  Active" if active else f"{E_PAUSE}  Paused"
     return (
-        f"💎  <b>ForceCheck</b>\n"
+        f"{E_GEM}  <b>ForceCheck</b>\n"
         f"{_HR}\n\n"
         f"  Watching   ·   <b>{ip_str}</b>\n"
         f"  Interval   ·   <b>every {interval} min</b>\n"
@@ -132,28 +154,30 @@ def _menu_text(user: dict) -> str:
 def _ip_card(ip: str, res: dict) -> str:
     if not res:
         return (
-            f"📡  <b>{ip}</b>\n"
-            f"❓  Could not reach check-host.net"
+            f"{E_SAT}  <code>{ip}</code>\n"
+            f"{E_ERR}  Could not reach check-host.net"
         )
     ir  = res["iran_ok"]
     gl  = res["global_ok"]
     i_n = f"{res['iran_nodes']}/{res['total_iran']}"
     g_n = f"{res['global_nodes']}/{res['total_global']}"
 
-    if   ir and     gl:  icon, label = "✅", "Globally Accessible"
-    elif ir and not gl:  icon, label = "🔴", "Iran Access Only"
-    elif not ir and gl:  icon, label = "⚠️", "Restricted  ·  Filter"
-    else:                icon, label = "❌", "Host Unreachable"
+    if   ir and     gl:  icon, label = E_OK,   "Globally Accessible"
+    elif ir and not gl:  icon, label = E_RED,  "Iran Access Only"
+    elif not ir and gl:  icon, label = E_WARN, "Restricted  ·  Filter"
+    else:                icon, label = E_ERR,  "Host Unreachable"
 
     return (
-        f"📡  <code>{ip}</code>\n"
+        f"{E_SAT}  <code>{ip}</code>\n"
         f"{icon}  <b>{label}</b>\n\n"
-        f"  🇮🇷  Iran    <code>{i_n}</code>\n"
-        f"  🌐  Global   <code>{g_n}</code>"
+        f"  {E_IRAN}  Iran    <code>{i_n}</code>\n"
+        f"  {E_GLOBE}  Global   <code>{g_n}</code>"
     )
 
 
-def _results_text(ips: list, res_list: list, header: str = "🔍  <b>Check Results</b>") -> str:
+def _results_text(ips: list, res_list: list, header: str = "") -> str:
+    if not header:
+        header = f"{E_SEARCH}  <b>Check Results</b>"
     cards = [_ip_card(ip, r) for ip, r in zip(ips, res_list)]
     sep   = f"\n\n{_DIV}\n\n"
     return f"{header}\n{_HR}\n\n" + sep.join(cards)
@@ -163,7 +187,7 @@ def _list_text(user: dict) -> str:
     ips      = user.get("ips", [])
     interval = user.get("interval", 60)
     active   = user.get("active", True)
-    st       = "▶  Active" if active else "⏸  Paused"
+    st       = f"{E_PLAY}  Active" if active else f"{E_PAUSE}  Paused"
     lines = [
         f"📋  <b>My IPs</b>",
         f"{_HR}",
@@ -232,7 +256,7 @@ def _build_app(token: str):
         loop     = asyncio.get_running_loop()
         tasks    = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
         res_list = await asyncio.gather(*tasks)
-        text     = _results_text(ips, res_list, header="🕐  <b>Scheduled Check</b>")
+        text     = _results_text(ips, res_list, header=f"{E_CLOCK}  <b>Scheduled Check</b>")
         try:
             await ctx.bot.send_message(
                 chat_id=int(uid),
@@ -300,7 +324,7 @@ def _build_app(token: str):
 
             if not _IP_RE.match(text):
                 await update.message.reply_html(
-                    f"❌  <b>Invalid IP address</b>\n"
+                    f"{E_ERR}  <b>Invalid IP address</b>\n"
                     f"{_HR}\n\n"
                     f"  <code>{text}</code>\n\n"
                     f"Please send a valid IPv4 address:\n"
@@ -312,13 +336,13 @@ def _build_app(token: str):
             store, user = _get_user(uid)
             if text in user["ips"]:
                 await update.message.reply_html(
-                    f"⚠️  Already monitoring  <code>{text}</code>",
+                    f"{E_WARN}  Already monitoring  <code>{text}</code>",
                     reply_markup=_kb_back(),
                 )
                 return
             if len(user["ips"]) >= 20:
                 await update.message.reply_html(
-                    f"❌  Maximum 20 IPs per user.",
+                    f"{E_ERR}  Maximum 20 IPs per user.",
                     reply_markup=_kb_back(),
                 )
                 return
@@ -329,7 +353,7 @@ def _build_app(token: str):
                 _schedule(ctx.job_queue, uid, user.get("interval", 60))
 
             await update.message.reply_html(
-                f"✅  <b>Added to monitoring</b>\n"
+                f"{E_OK}  <b>Added to monitoring</b>\n"
                 f"{_HR}\n\n"
                 f"  <code>{text}</code>\n\n"
                 f"  Next auto-check in  <b>{user.get('interval', 60)} min</b>",
@@ -347,14 +371,14 @@ def _build_app(token: str):
                 mins = int(text)
             except ValueError:
                 await update.message.reply_html(
-                    f"❌  Please send a <b>number</b> of minutes.",
+                    f"{E_ERR}  Please send a <b>number</b> of minutes.",
                     reply_markup=_kb_cancel(),
                 )
                 return
 
             if mins < 5:
                 await update.message.reply_html(
-                    f"⚠️  Minimum interval is  <b>5 minutes</b>.",
+                    f"{E_WARN}  Minimum interval is  <b>5 minutes</b>.",
                     reply_markup=Kbd([
                         [Btn("⏱  Try Again", callback_data="interval"),
                          Btn("◀  Menu",     callback_data="menu")],
@@ -369,7 +393,7 @@ def _build_app(token: str):
                 _schedule(ctx.job_queue, uid, mins)
 
             await update.message.reply_html(
-                f"✅  Interval set to  <b>{mins} minutes</b>",
+                f"{E_OK}  Interval set to  <b>{mins} minutes</b>",
                 reply_markup=_kb_back(),
             )
 
@@ -398,7 +422,7 @@ def _build_app(token: str):
             ips = user.get("ips", [])
             if not ips:
                 await query.edit_message_text(
-                    f"⚠️  <b>No IPs to check.</b>\n\n"
+                    f"{E_WARN}  <b>No IPs to check.</b>\n\n"
                     f"Add some IPs first.",
                     parse_mode="HTML",
                     reply_markup=Kbd([
@@ -410,7 +434,7 @@ def _build_app(token: str):
 
             n = len(ips)
             await query.edit_message_text(
-                f"🔍  <b>Checking {n} IP{'s' if n > 1 else ''}…</b>\n"
+                f"{E_SEARCH}  <b>Checking {n} IP{'s' if n > 1 else ''}…</b>\n"
                 f"{_HR}\n\n"
                 f"  Please wait  ·  30–60 seconds",
                 parse_mode="HTML",
@@ -433,7 +457,7 @@ def _build_app(token: str):
             ips = user.get("ips", [])
             if not ips:
                 await query.edit_message_text(
-                    f"⚠️  <b>No IPs monitored.</b>",
+                    f"{E_WARN}  <b>No IPs monitored.</b>",
                     parse_mode="HTML",
                     reply_markup=Kbd([
                         [Btn("➕  Add IP", callback_data="add"),
@@ -455,7 +479,7 @@ def _build_app(token: str):
         elif data == "add":
             ctx.user_data["awaiting"] = _S_IP
             await query.edit_message_text(
-                f"➕  <b>Add IP</b>\n"
+                f"{E_ADD}  <b>Add IP</b>\n"
                 f"{_HR}\n\n"
                 f"Send the IPv4 address to monitor:\n\n"
                 f"  <code>e.g.  1.2.3.4</code>",
@@ -469,13 +493,13 @@ def _build_app(token: str):
             ips = user.get("ips", [])
             if not ips:
                 await query.edit_message_text(
-                    f"⚠️  <b>No IPs to remove.</b>",
+                    f"{E_WARN}  <b>No IPs to remove.</b>",
                     parse_mode="HTML",
                     reply_markup=_kb_back(),
                 )
                 return
             await query.edit_message_text(
-                f"🗑  <b>Remove IP</b>\n"
+                f"{E_TRASH}  <b>Remove IP</b>\n"
                 f"{_HR}\n\n"
                 f"  Select the IP to remove:",
                 parse_mode="HTML",
@@ -489,7 +513,7 @@ def _build_app(token: str):
                 user["ips"].remove(ip_del)
                 _save(store)
                 await query.edit_message_text(
-                    f"🗑  <b>Removed</b>\n"
+                    f"{E_TRASH}  <b>Removed</b>\n"
                     f"{_HR}\n\n"
                     f"  <code>{ip_del}</code>",
                     parse_mode="HTML",
@@ -506,7 +530,7 @@ def _build_app(token: str):
             _, user = _get_user(uid)
             ctx.user_data["awaiting"] = _S_INTERVAL
             await query.edit_message_text(
-                f"⏱  <b>Set Interval</b>\n"
+                f"{E_CLOCK}  <b>Set Interval</b>\n"
                 f"{_HR}\n\n"
                 f"  Current:  <b>every {user.get('interval', 60)} min</b>\n\n"
                 f"Send the new interval in minutes:\n\n"
