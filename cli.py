@@ -718,14 +718,14 @@ def _run_update() -> None:
     print(f"\n  {B}update{N}")
     print(f"  {DIM}current version : {__version__}{N}")
 
-    # دریافت آخرین ورژن از GitHub
     raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
+
+    # ── fetch latest version ───────────────────────────────────────────────
     latest = "unknown"
     try:
         import re as _re
         resp = urllib.request.urlopen(f"{raw_base}/__init__.py", timeout=6)
-        text = resp.read().decode()
-        m = _re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', text)
+        m    = _re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', resp.read().decode())
         if m:
             latest = m.group(1)
     except Exception:
@@ -758,26 +758,54 @@ def _run_update() -> None:
     except Exception:
         site = sysconfig.get_path("purelib")
 
-    pkg_dir  = os.path.join(site, "forcecheck")
-    raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
-    pyfiles  = [
+    pkg_dir = os.path.join(site, "forcecheck")
+    os.makedirs(pkg_dir, exist_ok=True)
+
+    # ── fetch file manifest from GitHub (always up-to-date list) ──────────
+    _FALLBACK = [
         "__init__.py", "ansinfo.py", "bgp.py", "bot.py", "checkall.py",
         "cli.py", "colors.py", "_deps.py", "http.py", "ping.py",
         "tcp.py", "trace.py", "whois.py",
     ]
+    pyfiles = _FALLBACK
+    try:
+        resp  = urllib.request.urlopen(f"{raw_base}/manifest.txt", timeout=6)
+        lines = resp.read().decode().splitlines()
+        fetched = [l.strip() for l in lines if l.strip() and not l.startswith("#")]
+        if fetched:
+            pyfiles = fetched
+    except Exception:
+        pass  # fall back to _FALLBACK silently
 
-    os.makedirs(pkg_dir, exist_ok=True)
+    # ── download all files ─────────────────────────────────────────────────
     failed = []
-
     for f in pyfiles:
-        url  = f"{raw_base}/{f}"
         dest = os.path.join(pkg_dir, f)
         try:
-            urllib.request.urlretrieve(url, dest)
+            urllib.request.urlretrieve(f"{raw_base}/{f}", dest)
             print(f"  {G}✓{N} {f}")
         except Exception:
             failed.append(f)
             print(f"  {R}✗{N} {f}")
+
+    # ── create any missing script commands ─────────────────────────────────
+    scripts = sysconfig.get_path("scripts")
+    _CMDS = [
+        ("ping!", "ping"), ("tcp!", "tcp"), ("bgp!", "bgp"),
+        ("trace!", "trace"), ("http!", "http"), ("info!", "ansinfo"),
+        ("domain!", "whois"), ("checkall!", "checkall"),
+        ("bot!", "bot"), ("fcheck", "cli"),
+    ]
+    for cmd, mod in _CMDS:
+        path = os.path.join(scripts, cmd)
+        if not os.path.exists(path):
+            try:
+                with open(path, "w") as fh:
+                    fh.write(f"#!/usr/bin/env python3\nfrom forcecheck.{mod} import main\nmain()\n")
+                os.chmod(path, 0o755)
+                print(f"  {G}✓{N} created  {cmd}")
+            except Exception:
+                pass
 
     if failed:
         print(f"\n  {Y}Update completed with {len(failed)} failed file(s).{N}")
