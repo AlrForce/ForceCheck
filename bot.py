@@ -132,7 +132,109 @@ def _check_ip(ip: str, max_nodes: int = 25) -> dict:
     }
 
 
+def _check_ip_detailed(ip: str, max_nodes: int = 25) -> dict:
+    import requests
+    sess = requests.Session()
+    sess.headers["Accept"] = "application/json"
+    try:
+        r = sess.get(
+            f"{CHECK_HOST}/check-ping",
+            params={"host": ip, "max_nodes": max_nodes},
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+    except Exception:
+        return {}
+    nodes = data.get("nodes", {})
+    if not nodes:
+        return {}
+    results = _poll_results(sess, data["request_id"], len(nodes))
+    iran_details   = []
+    global_details = []
+    iran_ok = iran_total = global_ok = global_total = 0
+    for nid, info in nodes.items():
+        is_iran  = _is_iran(info)
+        country  = info[1] if len(info) > 1 else "?"
+        city     = info[2] if len(info) > 2 else "?"
+        pings    = results.get(nid)
+        attempts = (pings[0] or []) if pings else []
+        ok_list  = [p for p in attempts if p and p[0] == "OK"]
+        ok       = bool(ok_list)
+        rtt      = sum(p[1] * 1000 for p in ok_list) / len(ok_list) if ok_list else None
+        entry    = {"city": city, "country": country, "rtt": rtt, "ok": ok}
+        if is_iran:
+            iran_total += 1
+            if ok: iran_ok += 1
+            iran_details.append(entry)
+        else:
+            global_total += 1
+            if ok: global_ok += 1
+            global_details.append(entry)
+    return {
+        "iran_ok":       iran_ok > 0,
+        "global_ok":     global_ok > 0,
+        "iran_nodes":    iran_ok,
+        "global_nodes":  global_ok,
+        "total_iran":    iran_total,
+        "total_global":  global_total,
+        "iran_details":  iran_details,
+        "global_details": global_details,
+    }
+
+
 # ── message composers ─────────────────────────────────────────────────────────
+
+def _ping_text(ip: str, res: dict) -> str:
+    if not res:
+        return (
+            f"{E_SEARCH}  <b>Ping Check</b>\n"
+            f"{_HR}\n\n"
+            f"  {E_SAT}  <b><code>{ip}</code></b>\n\n"
+            f"  {E_ERR}  <b>Unreachable</b>\n"
+            f"  <i>Could not contact check-host.net</i>"
+        )
+
+    def _line(e: dict) -> str:
+        loc = f"{e['city']}, {e['country']}" if e["city"] and e["country"] \
+              else e["city"] or e["country"] or "?"
+        if len(loc) > 22:
+            loc = loc[:21] + "…"
+        rtt_str = f"{e['rtt']:.1f}ms" if e["rtt"] is not None else "—"
+        mark    = "✓" if e["ok"] else "✗"
+        return f"  {loc:<23} {rtt_str:>8}   {mark}"
+
+    iran_lines   = [_line(e) for e in res.get("iran_details",   [])]
+    global_lines = [_line(e) for e in res.get("global_details", [])]
+
+    ir = res["iran_ok"]
+    gl = res["global_ok"]
+    if   ir and     gl:  icon, label = E_OK,   "GLOBALLY ACCESSIBLE"
+    elif ir and not gl:  icon, label = E_RED,  "IRAN ACCESS ONLY"
+    elif not ir and gl:  icon, label = E_WARN, "RESTRICTED  ·  FILTERED"
+    else:                icon, label = E_ERR,  "HOST UNREACHABLE"
+
+    io, it = res["iran_nodes"], res["total_iran"]
+    go, gt = res["global_nodes"], res["total_global"]
+
+    parts = [
+        f"{E_SEARCH}  <b>Ping Check</b>\n{_HR}\n\n",
+        f"  {E_SAT}  <b><code>{ip}</code></b>\n\n",
+    ]
+    if iran_lines:
+        parts.append(f"{E_IRAN}  <b>IRAN</b>\n")
+        parts.append("<code>" + "\n".join(iran_lines) + "</code>\n\n")
+    if global_lines:
+        parts.append(f"{E_GLOBE}  <b>GLOBAL</b>\n")
+        parts.append("<code>" + "\n".join(global_lines) + "</code>\n\n")
+    parts.append(
+        f"{_HR}\n\n"
+        f"  {icon}  <b>{label}</b>\n\n"
+        f"  {E_IRAN}  Iran      <code>{io:>2} / {it:<2}</code>  <i>{round(io/it*100) if it else 0}%</i>\n"
+        f"  {E_GLOBE}  Global    <code>{go:>2} / {gt:<2}</code>  <i>{round(go/gt*100) if gt else 0}%</i>"
+    )
+    return "".join(parts)
+
 
 def _pct(ok: int, total: int) -> str:
     if not total:
@@ -323,6 +425,12 @@ def _build_app(token: str):
             [Btn(toggle[0],                callback_data=toggle[1])],
             [Btn("❓  Guide & Help",        callback_data="help")],
         ])
+
+    def _kb_check_select(ips: list) -> Kbd:
+        rows = [[Btn(f"📡  {ip}", callback_data=f"check_one:{ip}")] for ip in ips]
+        rows.append([Btn("🔍  Check All",  callback_data="check_all")])
+        rows.append([Btn("◀️  Menu",       callback_data="menu")])
+        return Kbd(rows)
 
     def _kb_back(also_check: bool = False) -> Kbd:
         row = []
@@ -546,7 +654,7 @@ def _build_app(token: str):
                 reply_markup=_kb_back(),
             )
 
-        # ── check all ─────────────────────────────
+        # ── check — show IP selection screen ──────
         elif data == "check":
             _, user = _get_user(uid)
             ips = user.get("ips", [])
@@ -563,7 +671,42 @@ def _build_app(token: str):
                     ]),
                 )
                 return
-            n = len(ips)
+            await query.edit_message_text(
+                f"{E_SEARCH}  <b>Select IP to Check</b>\n"
+                f"{_HR}\n\n"
+                f"<i>Tap an IP for a detailed per-node ping,\n"
+                f"or check all IPs at once:</i>",
+                parse_mode="HTML",
+                reply_markup=_kb_check_select(ips),
+            )
+
+        # ── single IP detailed ping ────────────────
+        elif data.startswith("check_one:"):
+            ip = data[len("check_one:"):]
+            await query.edit_message_text(
+                f"{E_SEARCH}  <b>Pinging  <code>{ip}</code> …</b>\n"
+                f"{_HR}\n\n"
+                f"  {E_CLOCK}  Please wait  ·  <b>30 – 60 sec</b>\n\n"
+                f"  <i>Sending probes from 100+ global nodes…</i>",
+                parse_mode="HTML",
+            )
+            loop = asyncio.get_running_loop()
+            res  = await loop.run_in_executor(None, _check_ip_detailed, ip)
+            await query.edit_message_text(
+                _ping_text(ip, res),
+                parse_mode="HTML",
+                reply_markup=Kbd([
+                    [Btn("🔄  Check Again", callback_data=f"check_one:{ip}"),
+                     Btn("◀️  Back",        callback_data="check")],
+                    [Btn("◀️  Menu", callback_data="menu")],
+                ]),
+            )
+
+        # ── check all — summary overview ───────────
+        elif data == "check_all":
+            _, user = _get_user(uid)
+            ips = user.get("ips", [])
+            n   = len(ips)
             await query.edit_message_text(
                 f"{E_SEARCH}  <b>Checking {n} IP{'s' if n > 1 else ''}…</b>\n"
                 f"{_HR}\n\n"
@@ -577,7 +720,11 @@ def _build_app(token: str):
             await query.edit_message_text(
                 _results_text(ips, res_list),
                 parse_mode="HTML",
-                reply_markup=_kb_back(also_check=True),
+                reply_markup=Kbd([
+                    [Btn("🔄  Check All Again", callback_data="check_all"),
+                     Btn("◀️  Back",            callback_data="check")],
+                    [Btn("◀️  Menu", callback_data="menu")],
+                ]),
             )
 
         # ── list ──────────────────────────────────
