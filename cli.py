@@ -1,8 +1,8 @@
 """
-fc — interactive menu for ForceCheck tools
+ff — interactive menu for ForceCheck tools
 
 Usage:
-  fc
+  ff
 """
 
 import sys
@@ -155,7 +155,7 @@ def _show_about() -> None:
 def _run_uninstall() -> None:
     print(f"\n  {R}uninstall ForceCheck{N}\n")
     print(f"  {Y}This will remove ForceCheck and all its commands from your system.{N}")
-    print(f"  {DIM}(ping!  tcp!  bgp!  trace!  http!  info!  domain!  checkall!  fc){N}\n")
+    print(f"  {DIM}(ping!  tcp!  bgp!  trace!  http!  info!  domain!  checkall!  ff){N}\n")
 
     try:
         confirm = input(f"    {R}Type 'yes' to confirm:{N} ").strip().lower()
@@ -187,7 +187,7 @@ def _run_uninstall() -> None:
 
     # حذف دستورهای !
     scripts = sysconfig.get_path("scripts")
-    for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!", "domain!", "checkall!", "fc", "fcheck"):
+    for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!", "domain!", "checkall!", "ff", "fc", "fcheck"):
         path = f"{scripts}/{cmd}"
         if __import__("os").path.exists(path):
             try:
@@ -330,7 +330,7 @@ def _manage_systemd() -> None:
                     print(f"\n  {Y}Service installed — but failed to start:{N} {err or 'unknown error'}")
                     print(f"  {DIM}Check token via option 1 in Bot Settings, then try again.{N}")
             except PermissionError:
-                print(f"\n  {R}Permission denied — run fc as root:{N}  sudo fc")
+                print(f"\n  {R}Permission denied — run ff as root:{N}  sudo ff")
             except Exception as e:
                 print(f"\n  {R}Error:{N} {e}")
 
@@ -388,7 +388,7 @@ def _manage_systemd() -> None:
                     _cmd("systemctl daemon-reload")
                     print(f"\n  {G}Service removed successfully.{N}")
                 except PermissionError:
-                    print(f"\n  {R}Permission denied — run fc as root:{N}  sudo fc")
+                    print(f"\n  {R}Permission denied — run ff as root:{N}  sudo ff")
                 except Exception as e:
                     print(f"\n  {R}Error:{N} {e}")
             else:
@@ -653,7 +653,7 @@ def _show_help() -> None:
         ("bot!",
          "Telegram bot — monitors IPs on a schedule.",
          ["bot! --token <TOKEN>",
-          "fc → 9  (configure token & allowed IDs)"]),
+          "ff → 9  (configure token & allowed IDs)"]),
     ]
 
     for cmd, desc, examples in cmds:
@@ -696,8 +696,8 @@ def _show_help() -> None:
     tips = [
         "All checks use  check-host.net  under the hood.",
         "Commands work standalone:  ping! 8.8.8.8",
-        "Telegram bot:  fc → 9 → configure → start",
-        "Update anytime:  fc → u",
+        "Telegram bot:  ff → 9 → configure → start",
+        "Update anytime:  ff → u",
         "Find your Telegram chat ID via  @userinfobot",
     ]
     for tip in tips:
@@ -794,7 +794,7 @@ def _run_update() -> None:
         ("ping!", "ping"), ("tcp!", "tcp"), ("bgp!", "bgp"),
         ("trace!", "trace"), ("http!", "http"), ("info!", "ansinfo"),
         ("domain!", "whois"), ("checkall!", "checkall"),
-        ("bot!", "bot"), ("fc", "cli"),
+        ("bot!", "bot"), ("ff", "cli"),
     ]
     for cmd, mod in _CMDS:
         path = os.path.join(scripts, cmd)
@@ -831,7 +831,7 @@ def _run_update() -> None:
     else:
         print(f"\n  {G}Update complete!{N}")
         try:
-            input(f"\n  {DIM}Press Enter to restart fc ...{N}")
+            input(f"\n  {DIM}Press Enter to restart ff ...{N}")
         except (EOFError, KeyboardInterrupt):
             print()
         os.execv(sys.executable, [sys.executable] + sys.argv)
