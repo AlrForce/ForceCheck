@@ -44,6 +44,7 @@ BANNER = (
 
 _ITEMS = [
     ("ping!",     "distributed ping",                "Host or IP",           None),
+    ("tcp!",      "distributed TCP port check",      "Host or IP",           None),
     ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",   None),
     ("trace!",    "distributed traceroute",          "Host or IP",           None),
     ("http!",     "HTTP check from global nodes",    "URL or host",          None),
@@ -186,7 +187,7 @@ def _run_uninstall() -> None:
 
     # حذف دستورهای !
     scripts = sysconfig.get_path("scripts")
-    for cmd in ("ping!", "bgp!", "trace!", "http!", "info!", "domain!", "checkall!", "fcheck"):
+    for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!", "domain!", "checkall!", "fcheck"):
         path = f"{scripts}/{cmd}"
         if __import__("os").path.exists(path):
             try:
@@ -625,6 +626,9 @@ def _show_help() -> None:
         ("ping!",
          "Distributed ping from global nodes.",
          ["ping! 1.2.3.4", "ping! google.com"]),
+        ("tcp!",
+         "Distributed TCP port check — tests if a port is open from global nodes.",
+         ["tcp! 1.2.3.4 80", "tcp! example.com 443", "tcp! 1.2.3.4 22"]),
         ("bgp!",
          "BGP route lookup and ASN information.",
          ["bgp! 1.2.3.4", "bgp! AS12880"]),
@@ -649,7 +653,7 @@ def _show_help() -> None:
         ("bot!",
          "Telegram bot — monitors IPs on a schedule.",
          ["bot! --token <TOKEN>",
-          "fcheck → 8  (configure token & allowed IDs)"]),
+          "fcheck → 9  (configure token & allowed IDs)"]),
     ]
 
     for cmd, desc, examples in cmds:
@@ -692,7 +696,7 @@ def _show_help() -> None:
     tips = [
         "All checks use  check-host.net  under the hood.",
         "Commands work standalone:  ping! 8.8.8.8",
-        "Telegram bot:  fcheck → 8 → configure → start",
+        "Telegram bot:  fcheck → 9 → configure → start",
         "Update anytime:  fcheck → u",
         "Find your Telegram chat ID via  @userinfobot",
     ]
@@ -759,7 +763,7 @@ def _run_update() -> None:
     pyfiles  = [
         "__init__.py", "ansinfo.py", "bgp.py", "bot.py", "checkall.py",
         "cli.py", "colors.py", "_deps.py", "http.py", "ping.py",
-        "trace.py", "whois.py",
+        "tcp.py", "trace.py", "whois.py",
     ]
 
     os.makedirs(pkg_dir, exist_ok=True)
@@ -790,13 +794,13 @@ def _run(choice: int) -> None:
     cmd_name, _, target_label, has_nodes = _ITEMS[choice - 1]
 
     if target_label is None:
-        if choice == 8:
+        if choice == 9:
             _bot_settings()
         return
 
     print(f"\n  {B}{cmd_name}{N}")
 
-    target = _ask_host(target_label) if choice in (1, 4) else _ask(target_label)
+    target = _ask_host(target_label) if choice in (1, 2, 5) else _ask(target_label)
     if not target:
         return
 
@@ -808,29 +812,49 @@ def _run(choice: int) -> None:
             from .ping import run
             run(target, 220)
         elif choice == 2:
+            print(f"  {DIM}Valid range: 1 – 65535{N}")
+            print(f"  {DIM}Common: 22 SSH · 80 HTTP · 443 HTTPS · 3306 MySQL · 5432 PG · 6379 Redis{N}")
+            try:
+                port_raw = input(f"\n    {DIM}Port:{N} ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return
+            if not port_raw:
+                return
+            try:
+                port = int(port_raw)
+                if not 1 <= port <= 65535:
+                    raise ValueError
+            except ValueError:
+                print(f"\n  {R}Invalid port — must be between 1 and 65535.{N}")
+                return
+            print()
+            from .tcp import run
+            run(target, port)
+        elif choice == 3:
             from .bgp import run
             run(target)
-        elif choice == 3:
+        elif choice == 4:
             from .trace import run, ask_mode
             mode = ask_mode()
             if not mode:
                 return
             print()
             run(target, mode)
-        elif choice == 4:
+        elif choice == 5:
             from .http import run
             run(target, 220)
-        elif choice == 5:
+        elif choice == 6:
             from .ansinfo import _ASN_RE, run_ip, run_asn
             m = _ASN_RE.match(target)
             if m:
                 run_asn(int(m.group(1)))
             else:
                 run_ip(target)
-        elif choice == 6:
+        elif choice == 7:
             from .whois import run
             run(target)
-        elif choice == 7:
+        elif choice == 8:
             from .checkall import run
             run(target)
     except SystemExit as e:
