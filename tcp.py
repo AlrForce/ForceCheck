@@ -154,7 +154,7 @@ def run(host: str, port: int, max_nodes: int = 220) -> None:
 
     if not iran_reach and global_reach:
         print(f"  {R}╔{'═' * 40}╗{N}")
-        print(f"  {R}║{'⚠  Port Restricted  ( Filter )':^40}║{N}")
+        print(f"  {R}║{'⚠  Port Restricted':^40}║{N}")
         print(f"  {R}╚{'═' * 40}╝{N}")
     elif iran_reach and not global_reach:
         print(f"  {R}╔{'═' * 40}╗{N}")
