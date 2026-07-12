@@ -10,7 +10,7 @@ ForceCheck is a lightweight CLI tool for network engineers, sysadmins, and secur
 - **`http!`** — HTTP status and response time check from global nodes
 - **`whois!`** — IP and ASN WHOIS lookup via RDAP
 - **`checkall!`** — run all checks in parallel and display a unified summary
-- **`fcheck`** — interactive menu for all tools
+- **`fc`** — interactive menu for all tools
 
 No account. No API key. One install.
 
@@ -39,7 +39,7 @@ irm https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.ps1 | i
 ### Interactive menu
 
 ```bash
-fcheck
+fc
 ```
 
 ```

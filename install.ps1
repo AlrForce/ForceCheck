@@ -29,5 +29,5 @@ Write-Host "  Installing ForceCheck from GitHub ..."
 & $py -m pip install --upgrade "git+$REPO" --quiet
 
 Write-Host ""
-Write-Host "  Done! Run 'fc!' to open the interactive menu."
+Write-Host "  Done! Run 'fc' to open the interactive menu."
 Write-Host ""
