@@ -43,6 +43,7 @@ def _menu() -> str:
     lines.append(f"  {G}u{N}  {'update':<12}{DIM}download latest version from GitHub{N}")
     lines.append(f"  {C}a{N}  {'about':<12}{DIM}about & support{N}")
     lines.append(f"  {R}x{N}  {'uninstall':<12}{DIM}remove ForceCheck from this system{N}")
+    lines.append(f"  {B}h{N}  {'help':<12}{DIM}guide & usage reference{N}")
     lines.append(f"  {DIM}0  exit{N}")
     return "\n".join(lines)
 
@@ -371,6 +372,108 @@ def _bot_settings() -> None:
             print(f"\n  {R}Invalid choice.{N}")
 
 
+def _show_help() -> None:
+    w  = _W
+    ln = f"  {DIM}{'─' * w}{N}"
+
+    print(f"\n  {C}╔{'═' * w}╗")
+    print(f"  ║{'ForceCheck  —  Help & Reference':^{w}}║")
+    print(f"  ╚{'═' * w}╝{N}")
+
+    print(f"\n  {DIM}Network diagnostics from 100+ nodes worldwide via check-host.net{N}")
+
+    # ── commands ──────────────────────────────────────────────────────────
+    print(f"\n{ln}")
+    print(f"  {B}COMMANDS{N}")
+    print(ln)
+
+    cmds = [
+        ("ping!",
+         "Distributed ping from global nodes.",
+         ["ping! 1.2.3.4", "ping! google.com"]),
+        ("bgp!",
+         "BGP route lookup and ASN information.",
+         ["bgp! 1.2.3.4", "bgp! AS12880"]),
+        ("trace!",
+         "Distributed traceroute — three modes:",
+         ["trace! 1.2.3.4  →  choose  Iran / Global / World",
+          "trace! 1.2.3.4 --iran   (4 nodes, Iran only)",
+          "trace! 1.2.3.4 --global (4 international nodes)",
+          "trace! 1.2.3.4 --world  (8 worldwide nodes)"]),
+        ("http!",
+         "HTTP response check from global nodes.",
+         ["http! example.com", "http! https://example.com"]),
+        ("info!",
+         "IP & ASN lookup via RDAP  (country, ISP, ASN, timezone).",
+         ["info! 1.2.3.4", "info! AS15169", "info! google.com"]),
+        ("domain!",
+         "Domain availability & WHOIS registration info.",
+         ["domain! example.com"]),
+        ("checkall!",
+         "Run  ping + http + info  in parallel on one target.",
+         ["checkall! 1.2.3.4"]),
+        ("bot!",
+         "Telegram bot — monitors IPs on a schedule.",
+         ["bot! --token <TOKEN>",
+          "fcheck → 8  (configure token & allowed IDs)"]),
+    ]
+
+    for cmd, desc, examples in cmds:
+        print(f"\n  {G}{cmd}{N}")
+        print(f"  {DIM}{desc}{N}")
+        for ex in examples:
+            print(f"    {C}${N}  {ex}")
+
+    # ── status legend ──────────────────────────────────────────────────────
+    print(f"\n{ln}")
+    print(f"  {B}STATUS LEGEND{N}  {DIM}(ping! · checkall!){N}")
+    print(ln)
+
+    statuses = [
+        (G, "✓  Globally Accessible",
+         "Responds from Iran AND global nodes."),
+        (R, "◎  Iran Access Only",
+         "Responds only from Iranian nodes — blocked globally."),
+        (Y, "⚠  Restricted  (Filter)",
+         "Blocked inside Iran — reachable from global nodes."),
+        (R, "✗  Host Unreachable",
+         "No response from any node worldwide."),
+    ]
+    for col, label, detail in statuses:
+        print(f"\n  {col}{label}{N}")
+        print(f"  {DIM}{detail}{N}")
+
+    # ── trace modes ────────────────────────────────────────────────────────
+    print(f"\n{ln}")
+    print(f"  {B}TRACE MODES{N}")
+    print(ln)
+    print(f"\n  {Y}🇮🇷  Iran Trace{N}    {DIM}4 probe nodes located inside Iran{N}")
+    print(f"  {C}🌐  Global Trace{N}  {DIM}4 international nodes outside Iran{N}")
+    print(f"  {B}🗺   World Trace{N}   {DIM}8 nodes from worldwide — mixed regions{N}")
+
+    # ── tips ───────────────────────────────────────────────────────────────
+    print(f"\n{ln}")
+    print(f"  {B}TIPS{N}")
+    print(ln)
+    tips = [
+        "All checks use  check-host.net  under the hood.",
+        "Commands work standalone:  ping! 8.8.8.8",
+        "Telegram bot:  fcheck → 8 → configure → start",
+        "Update anytime:  fcheck → u",
+        "Find your Telegram chat ID via  @userinfobot",
+    ]
+    for tip in tips:
+        print(f"\n  {DIM}·{N}  {tip}")
+
+    # ── links ──────────────────────────────────────────────────────────────
+    print(f"\n{ln}")
+    print(f"  {DIM}GitHub   :{N}  github.com/AlrForce")
+    print(f"  {DIM}Telegram :{N}  @ThisChannelisX")
+    print(f"  {DIM}Version  :{N}  v{__version__}")
+    print(ln)
+    print()
+
+
 def _run_update() -> None:
     import os, sysconfig, urllib.request
 
@@ -526,8 +629,10 @@ def _loop() -> None:
             _show_about()
         elif raw == "x":
             _run_uninstall()
+        elif raw == "h":
+            _show_help()
         elif not raw.isdigit() or not 1 <= int(raw) <= len(_ITEMS):
-            print(f"\n  {R}Invalid choice — enter 0-{len(_ITEMS)}, u, a, or x.{N}")
+            print(f"\n  {R}Invalid choice — enter 0-{len(_ITEMS)}, u, a, x or h.{N}")
             continue
         else:
             _run(int(raw))
