@@ -102,7 +102,7 @@ create_cmd "ping!"     "ping"
 create_cmd "bgp!"      "bgp"
 create_cmd "trace!"    "trace"
 create_cmd "http!"     "http"
-create_cmd "whois!"    "whois"
+create_cmd "info!"     "whois"
 create_cmd "checkall!" "checkall"
 create_cmd "fcheck"    "cli"
 

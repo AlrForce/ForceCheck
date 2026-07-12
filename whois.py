@@ -2,7 +2,7 @@
 whois — IP & ASN lookup via RDAP
 
 Usage:
-  whois! <ip | hostname | prefix | asn>
+  info! <ip | hostname | prefix | asn>
 """
 
 import re
@@ -176,15 +176,15 @@ def run_asn(asn_num: int) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        prog="whois!",
+        prog="info!",
         description="IP and ASN WHOIS lookup via RDAP",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  whois! 8.8.8.8\n"
-            "  whois! google.com\n"
-            "  whois! 8.8.8.0/24\n"
-            "  whois! AS15169"
+            "  info! 8.8.8.8\n"
+            "  info! google.com\n"
+            "  info! 8.8.8.0/24\n"
+            "  info! AS15169"
         ),
     )
     ap.add_argument(

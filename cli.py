@@ -28,7 +28,7 @@ _ITEMS = [
     ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",  None),
     ("trace!",    "distributed traceroute",          "Host or IP",          "nodes"),
     ("http!",     "HTTP check from global nodes",    "URL or host",         None),
-    ("whois!",    "IP / ASN WHOIS via RDAP",         "IP, hostname, or ASN", None),
+    ("info!",     "IP / ASN WHOIS via RDAP",         "IP, hostname, or ASN", None),
     ("checkall!", "run all checks in parallel",      "Host or IP",          None),
 ]
 
@@ -126,7 +126,7 @@ def _show_about() -> None:
 def _run_uninstall() -> None:
     print(f"\n  {R}uninstall ForceCheck{N}\n")
     print(f"  {Y}This will remove ForceCheck and all its commands from your system.{N}")
-    print(f"  {DIM}(ping!  bgp!  trace!  http!  whois!  checkall!  fcheck){N}\n")
+    print(f"  {DIM}(ping!  bgp!  trace!  http!  info!  checkall!  fcheck){N}\n")
 
     try:
         confirm = input(f"    {R}Type 'yes' to confirm:{N} ").strip().lower()
@@ -158,7 +158,7 @@ def _run_uninstall() -> None:
 
     # حذف دستورهای !
     scripts = sysconfig.get_path("scripts")
-    for cmd in ("ping!", "bgp!", "trace!", "http!", "whois!", "checkall!", "fcheck"):
+    for cmd in ("ping!", "bgp!", "trace!", "http!", "info!", "checkall!", "fcheck"):
         path = f"{scripts}/{cmd}"
         if __import__("os").path.exists(path):
             try:
