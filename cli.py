@@ -433,7 +433,7 @@ def _bot_settings() -> None:
         print(f"  {B}2{N}  Show setup instructions")
         print(f"  {B}3{N}  Start bot (this terminal)")
         print(f"  {B}4{N}  Manage allowed chat IDs  {DIM}(private mode){N}")
-        print(f"  {B}5{N}  Run as system service     {DIM}(systemd — permanent){N}")
+        print(f"  {B}5{N}  Let bot always run        {DIM}(systemd — permanent){N}")
         print(f"  {DIM}0  Back{N}")
 
         try:
