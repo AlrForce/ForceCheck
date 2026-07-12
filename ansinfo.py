@@ -56,6 +56,25 @@ def _row(label: str, value: str) -> None:
     print(f"  {DIM}{label:<14}{N}{value}")
 
 
+def _local_time(timezone: str) -> tuple:
+    """Returns (timezone_display, local_time_str)"""
+    import datetime
+    if not timezone:
+        return "—", "—"
+    try:
+        import zoneinfo
+        tz  = zoneinfo.ZoneInfo(timezone)
+        now = datetime.datetime.now(tz)
+        off = now.strftime("%z")                        # e.g. +0330
+        gmt = f"GMT{off[:3]}:{off[3:]}" if len(off) == 5 else ""
+        return (
+            f"{timezone}, {gmt}",
+            now.strftime(f"%H:%M ({off}) %Y.%m.%d"),
+        )
+    except Exception:
+        return timezone, "—"
+
+
 def run_ip(target: str) -> None:
     import requests
 
@@ -63,86 +82,63 @@ def run_ip(target: str) -> None:
     if ip != target.split("/")[0]:
         print(f"\n  {DIM}resolved {target} → {ip}{N}")
 
+    # ── hostname از reverse DNS ────────────────────────────────────────
+    hostname = ip
     try:
-        r = requests.get(
-            RDAP_IP.format(ip),
-            timeout=15,
-            headers={"Accept": "application/rdap+json"},
-        )
-        r.raise_for_status()
-    except requests.exceptions.ConnectionError:
-        sys.exit(f"{R}Cannot connect to rdap.org{N}")
-    except requests.exceptions.HTTPError as e:
-        sys.exit(f"{R}RDAP error:{N} {e}")
+        hostname = socket.gethostbyaddr(ip)[0]
+    except Exception:
+        pass
 
-    d = r.json()
-
-    handle  = d.get("handle", "—")
-    name    = d.get("name", "—")
-    country = d.get("country", "—")
-    start   = d.get("startAddress", "—")
-    end     = d.get("endAddress", "—")
-
-    cidrs = d.get("cidr0_cidrs", [])
-    cidr_str = ", ".join(
-        f"{c.get('v4prefix', c.get('v6prefix', '?'))}/{c.get('length', '?')}"
-        for c in cidrs
-    ) or "—"
-
-    org = "—"
-    for ent in d.get("entities", []):
-        roles = ent.get("roles", [])
-        if "registrant" in roles or "administrative" in roles:
-            org = _entity_name(ent)
-            # زیر-entity برای سازمان اصلی
-            for sub in ent.get("entities", []):
-                if "registrant" in sub.get("roles", []):
-                    org = _entity_name(sub)
-            break
-
-    registered = updated = "—"
-    for ev in d.get("events", []):
-        action = ev.get("eventAction", "")
-        if action == "registration":
-            registered = _fmt_date(ev.get("eventDate", ""))
-        elif action == "last changed":
-            updated = _fmt_date(ev.get("eventDate", ""))
-
-    links = d.get("links", [])
-    source = links[0].get("href", "").split("/")[2] if links else d.get("port43", "—")
-
-    # geo از ipinfo.io
+    # ── ipinfo.io ─────────────────────────────────────────────────────
     geo = {}
     try:
         geo = requests.get(IPINFO.format(ip), timeout=8).json()
     except Exception:
         pass
 
+    # ── RDAP برای IP range ────────────────────────────────────────────
+    ip_range = "—"
+    try:
+        rd = requests.get(RDAP_IP.format(ip), timeout=8,
+                          headers={"Accept": "application/rdap+json"})
+        if rd.status_code == 200:
+            d    = rd.json()
+            cidrs = d.get("cidr0_cidrs", [])
+            cidr_str = ", ".join(
+                f"{c.get('v4prefix', c.get('v6prefix','?'))}/{c.get('length','?')}"
+                for c in cidrs
+            )
+            s = d.get("startAddress", "")
+            e = d.get("endAddress", "")
+            ip_range = f"{s} - {e}  {DIM}CIDR: {cidr_str}{N}" if cidr_str else f"{s} - {e}"
+    except Exception:
+        pass
+
+    # ── parse org → ASN + ISP ─────────────────────────────────────────
+    org_raw = geo.get("org", "")
+    asn = isp = "—"
+    if org_raw.startswith("AS"):
+        parts = org_raw.split(" ", 1)
+        asn   = parts[0][2:]              # بدون "AS"
+        isp   = parts[1] if len(parts) > 1 else "—"
+    elif org_raw:
+        isp = org_raw
+
+    # ── timezone + local time ─────────────────────────────────────────
+    tz_disp, local_time = _local_time(geo.get("timezone", ""))
+
     print(f"\n{C}INFO  {ip}{N}\n")
-    _row("Network",      f"{handle}  {DIM}({name}){N}")
-    _row("CIDR",         cidr_str)
-    _row("Range",        f"{start}  —  {end}")
-    _row("Organization", org)
-    _row("Country",      country)
-    _row("Registered",   registered)
-    _row("Updated",      updated)
-    _row("Source",       source)
-
-    if geo:
-        print(f"\n  {B}── IP Geolocation ─────────────────────────{N}\n")
-        city     = geo.get("city", "")
-        region   = geo.get("region", "")
-        country2 = geo.get("country", "")
-        location = ", ".join(filter(None, [city, region, country2]))
-        if location:
-            _row("Location",  location)
-        if geo.get("org"):
-            _row("ISP / ASN", geo["org"])
-        if geo.get("timezone"):
-            _row("Timezone",  geo["timezone"])
-        if geo.get("loc"):
-            _row("Coords",    geo["loc"])
-
+    _row("IP address",  f"{B}{ip}{N}")
+    _row("Host name",   hostname)
+    _row("IP range",    ip_range)
+    _row("ASN",         asn)
+    _row("ISP / Org",   isp)
+    _row("Country",     geo.get("country", "—"))
+    _row("Region",      geo.get("region",  "—"))
+    _row("City",        geo.get("city",    "—"))
+    _row("Time zone",   tz_disp)
+    _row("Local time",  local_time)
+    _row("Postal Code", geo.get("postal",  "—"))
     print()
 
 
