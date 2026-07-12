@@ -15,6 +15,7 @@ from ._deps import ensure_deps
 
 RDAP_IP  = "https://rdap.org/ip/{}"
 RDAP_ASN = "https://rdap.org/autnum/{}"
+IPINFO   = "https://ipinfo.io/{}/json"
 
 _ASN_RE = re.compile(r"^(?:AS)?(\d+)$", re.I)
 
@@ -110,7 +111,14 @@ def run_ip(target: str) -> None:
     links = d.get("links", [])
     source = links[0].get("href", "").split("/")[2] if links else d.get("port43", "—")
 
-    print(f"\n{C}WHOIS {ip}{N}\n")
+    # geo از ipinfo.io
+    geo = {}
+    try:
+        geo = requests.get(IPINFO.format(ip), timeout=8).json()
+    except Exception:
+        pass
+
+    print(f"\n{C}INFO  {ip}{N}\n")
     _row("Network",      f"{handle}  {DIM}({name}){N}")
     _row("CIDR",         cidr_str)
     _row("Range",        f"{start}  —  {end}")
@@ -119,6 +127,22 @@ def run_ip(target: str) -> None:
     _row("Registered",   registered)
     _row("Updated",      updated)
     _row("Source",       source)
+
+    if geo:
+        print(f"\n  {B}── IP Geolocation ─────────────────────────{N}\n")
+        city     = geo.get("city", "")
+        region   = geo.get("region", "")
+        country2 = geo.get("country", "")
+        location = ", ".join(filter(None, [city, region, country2]))
+        if location:
+            _row("Location",  location)
+        if geo.get("org"):
+            _row("ISP / ASN", geo["org"])
+        if geo.get("timezone"):
+            _row("Timezone",  geo["timezone"])
+        if geo.get("loc"):
+            _row("Coords",    geo["loc"])
+
     print()
 
 
