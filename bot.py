@@ -1,6 +1,6 @@
 """
 ForceCheck Telegram Bot
-Clean inline-keyboard UI · scheduled IP monitoring via check-host.net
+Premium UI · inline keyboards · scheduled IP monitoring via check-host.net
 
 Setup: bot! --token <TOKEN>
        or:  fcheck → 8 (Bot Settings)
@@ -17,7 +17,9 @@ STORE_PATH = Path.home() / ".forcecheck_bot.json"
 CHECK_HOST = "https://check-host.net"
 _IP_RE     = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
 
-# ── premium animated emoji (message text only — buttons use plain Unicode) ────
+# ── premium animated emoji (message text only) ────────────────────────────────
+# Telegram does NOT allow <tg-emoji> in button labels — plain Unicode is used
+# for buttons, animated premium version is used in all message text.
 
 def _em(eid: str, fb: str) -> str:
     return f'<tg-emoji emoji-id="{eid}">{fb}</tg-emoji>'
@@ -39,9 +41,13 @@ E_PAUSE  = _em("5042036407137207122", "⏸️")
 E_PLAY   = _em("5039753786638205957", "▶️")
 E_BACK   = _em("5248966320845768373", "◀️")
 
-# ── awaiting-state keys ───────────────────────────────────────────────────────
+# ── state keys ────────────────────────────────────────────────────────────────
 _S_IP       = "ip"
 _S_INTERVAL = "interval"
+
+# ── separators ────────────────────────────────────────────────────────────────
+_HR  = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
+_DIV = "<code>· · · · · · · · · · · · · · ·</code>"
 
 # ── storage ───────────────────────────────────────────────────────────────────
 
@@ -131,36 +137,34 @@ def _check_ip(ip: str, max_nodes: int = 25) -> dict:
 
 # ── message composers ─────────────────────────────────────────────────────────
 
-_HR  = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
-_DIV = "<code>───────────────────────────</code>"
-
-
 def _menu_text(user: dict) -> str:
     ips      = user.get("ips", [])
     interval = user.get("interval", 60)
     active   = user.get("active", True)
     n        = len(ips)
-    ip_str   = f"{n} IP{'s' if n != 1 else ''}" if n else "none"
-    st       = f"{E_PLAY}  Active" if active else f"{E_PAUSE}  Paused"
+    ip_str   = f"<b>{n} IP{'s' if n != 1 else ''}</b>" if n else "<b>—</b>"
+    play     = E_PLAY if active else E_PAUSE
+    st       = "<b>Active</b>" if active else "<b>Paused</b>"
     return (
-        f"{E_GEM}  <b>ForceCheck</b>\n"
+        f"{E_GEM}  <b>ForceCheck Monitor</b>\n"
         f"{_HR}\n\n"
-        f"  Watching   ·   <b>{ip_str}</b>\n"
-        f"  Interval   ·   <b>every {interval} min</b>\n"
-        f"  Status     ·   <b>{st}</b>"
+        f"  {E_SAT}  Watching     {ip_str}\n"
+        f"  {E_CLOCK}  Interval     every  <b>{interval} min</b>\n"
+        f"  {play}  Status       {st}"
     )
 
 
 def _ip_card(ip: str, res: dict) -> str:
     if not res:
         return (
-            f"{E_SAT}  <code>{ip}</code>\n"
-            f"{E_ERR}  Could not reach check-host.net"
+            f"{E_SAT}  <code>{ip}</code>\n\n"
+            f"  {E_ERR}  <b>Unreachable</b>\n"
+            f"  Could not reach check-host.net"
         )
     ir  = res["iran_ok"]
     gl  = res["global_ok"]
-    i_n = f"{res['iran_nodes']}/{res['total_iran']}"
-    g_n = f"{res['global_nodes']}/{res['total_global']}"
+    i_n = f"{res['iran_nodes']} / {res['total_iran']}"
+    g_n = f"{res['global_nodes']} / {res['total_global']}"
 
     if   ir and     gl:  icon, label = E_OK,   "Globally Accessible"
     elif ir and not gl:  icon, label = E_RED,  "Iran Access Only"
@@ -168,35 +172,42 @@ def _ip_card(ip: str, res: dict) -> str:
     else:                icon, label = E_ERR,  "Host Unreachable"
 
     return (
-        f"{E_SAT}  <code>{ip}</code>\n"
-        f"{icon}  <b>{label}</b>\n\n"
-        f"  {E_IRAN}  Iran    <code>{i_n}</code>\n"
-        f"  {E_GLOBE}  Global   <code>{g_n}</code>"
+        f"{E_SAT}  <code>{ip}</code>\n\n"
+        f"  {icon}  <b>{label}</b>\n\n"
+        f"  {E_IRAN}  Iran      <code>{i_n}</code>\n"
+        f"  {E_GLOBE}  Global    <code>{g_n}</code>"
     )
 
 
-def _results_text(ips: list, res_list: list, header: str = "") -> str:
-    if not header:
-        header = f"{E_SEARCH}  <b>Check Results</b>"
+def _results_text(ips: list, res_list: list, is_scheduled: bool = False) -> str:
+    icon  = E_CLOCK if is_scheduled else E_SEARCH
+    title = "Scheduled Check" if is_scheduled else "Check Results"
+    n     = len(ips)
+    sub   = f"  ·  <i>{n} IP{'s' if n > 1 else ''}</i>"
     cards = [_ip_card(ip, r) for ip, r in zip(ips, res_list)]
     sep   = f"\n\n{_DIV}\n\n"
-    return f"{header}\n{_HR}\n\n" + sep.join(cards)
+    return (
+        f"{icon}  <b>{title}</b>{sub}\n"
+        f"{_HR}\n\n"
+        + sep.join(cards)
+    )
 
 
 def _list_text(user: dict) -> str:
     ips      = user.get("ips", [])
     interval = user.get("interval", 60)
     active   = user.get("active", True)
-    st       = f"{E_PLAY}  Active" if active else f"{E_PAUSE}  Paused"
+    play     = E_PLAY if active else E_PAUSE
+    st       = "<b>Active</b>" if active else "<b>Paused</b>"
     lines = [
         f"📋  <b>My IPs</b>",
         f"{_HR}",
         f"",
-        f"  {st}   ·   every {interval} min",
+        f"  {play}  {st}   ·   every  <b>{interval} min</b>",
         f"",
     ]
     for i, ip in enumerate(ips, 1):
-        lines.append(f"  <code>{i}.  {ip}</code>")
+        lines.append(f"  <code>{i}.   {ip}</code>")
     return "\n".join(lines)
 
 
@@ -216,32 +227,37 @@ def _build_app(token: str):
     app = Application.builder().token(token).build()
 
     # ── keyboards ─────────────────────────────────
+    # Note: Telegram only allows plain text in button labels.
+    # The emoji below are Unicode characters, not animated premium emoji.
 
     def _kb_main(user: dict) -> Kbd:
         active = user.get("active", True)
-        toggle = ("⏸  Pause",   "pause") if active else ("▶️  Resume", "resume")
+        toggle = (
+            ("⏸️  Pause Monitoring",  "pause")  if active else
+            ("▶️  Resume Monitoring", "resume")
+        )
         return Kbd([
-            [Btn("🔍  Check All",        callback_data="check")],
-            [Btn("📋  My IPs",           callback_data="list"),
-             Btn("➕  Add IP",           callback_data="add")],
-            [Btn("🗑  Remove IP",        callback_data="remove"),
-             Btn("⏱  Set Interval",     callback_data="interval")],
-            [Btn(toggle[0],             callback_data=toggle[1])],
+            [Btn("🔍  Check All Now",      callback_data="check")],
+            [Btn("📋  My IPs",             callback_data="list"),
+             Btn("➕  Add IP",             callback_data="add")],
+            [Btn("🗑  Remove IP",          callback_data="remove"),
+             Btn("⏱  Set Interval",       callback_data="interval")],
+            [Btn(toggle[0],               callback_data=toggle[1])],
         ])
 
     def _kb_back(also_check: bool = False) -> Kbd:
         row = []
         if also_check:
             row.append(Btn("🔄  Check Again", callback_data="check"))
-        row.append(Btn("◀  Menu", callback_data="menu"))
+        row.append(Btn("◀️  Menu", callback_data="menu"))
         return Kbd([row])
 
     def _kb_cancel() -> Kbd:
         return Kbd([[Btn("✖  Cancel", callback_data="menu")]])
 
     def _kb_remove(ips: list) -> Kbd:
-        rows = [[Btn(f"  🗑  {ip}  ", callback_data=f"del:{ip}")] for ip in ips]
-        rows.append([Btn("◀  Back", callback_data="menu")])
+        rows = [[Btn(f"🗑  {ip}", callback_data=f"del:{ip}")] for ip in ips]
+        rows.append([Btn("◀️  Cancel", callback_data="menu")])
         return Kbd(rows)
 
     # ── scheduling ────────────────────────────────
@@ -256,7 +272,7 @@ def _build_app(token: str):
         loop     = asyncio.get_running_loop()
         tasks    = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
         res_list = await asyncio.gather(*tasks)
-        text     = _results_text(ips, res_list, header=f"{E_CLOCK}  <b>Scheduled Check</b>")
+        text     = _results_text(ips, res_list, is_scheduled=True)
         try:
             await ctx.bot.send_message(
                 chat_id=int(uid),
@@ -285,10 +301,10 @@ def _build_app(token: str):
         ctx: ContextTypes.DEFAULT_TYPE,
         edit: bool = False,
     ) -> None:
-        uid      = str(update.effective_user.id)
-        _, user  = _get_user(uid)
-        text     = _menu_text(user)
-        kb       = _kb_main(user)
+        uid     = str(update.effective_user.id)
+        _, user = _get_user(uid)
+        text    = _menu_text(user)
+        kb      = _kb_main(user)
         if edit and update.callback_query:
             await update.callback_query.edit_message_text(
                 text, parse_mode="HTML", reply_markup=kb
@@ -318,17 +334,17 @@ def _build_app(token: str):
         text  = update.message.text.strip()
         state = ctx.user_data.get("awaiting")
 
-        # waiting for an IP ────────────────────────
+        # waiting for IP ───────────────────────────
         if state == _S_IP:
             ctx.user_data.pop("awaiting", None)
 
             if not _IP_RE.match(text):
                 await update.message.reply_html(
-                    f"{E_ERR}  <b>Invalid IP address</b>\n"
+                    f"{E_ERR}  <b>Invalid IP Address</b>\n"
                     f"{_HR}\n\n"
                     f"  <code>{text}</code>\n\n"
-                    f"Please send a valid IPv4 address:\n"
-                    f"  <code>e.g.  1.2.3.4</code>",
+                    f"Please send a valid IPv4 address:\n\n"
+                    f"  <code>e.g.   1 . 2 . 3 . 4</code>",
                     reply_markup=_kb_cancel(),
                 )
                 return
@@ -336,13 +352,16 @@ def _build_app(token: str):
             store, user = _get_user(uid)
             if text in user["ips"]:
                 await update.message.reply_html(
-                    f"{E_WARN}  Already monitoring  <code>{text}</code>",
+                    f"{E_WARN}  <b>Already Monitoring</b>\n\n"
+                    f"  {E_SAT}  <code>{text}</code>\n\n"
+                    f"This IP is already in your list.",
                     reply_markup=_kb_back(),
                 )
                 return
             if len(user["ips"]) >= 20:
                 await update.message.reply_html(
-                    f"{E_ERR}  Maximum 20 IPs per user.",
+                    f"{E_ERR}  <b>List Full</b>\n\n"
+                    f"Maximum  <b>20 IPs</b>  per user.",
                     reply_markup=_kb_back(),
                 )
                 return
@@ -353,13 +372,13 @@ def _build_app(token: str):
                 _schedule(ctx.job_queue, uid, user.get("interval", 60))
 
             await update.message.reply_html(
-                f"{E_OK}  <b>Added to monitoring</b>\n"
+                f"{E_OK}  <b>Added to Monitoring</b>\n"
                 f"{_HR}\n\n"
-                f"  <code>{text}</code>\n\n"
-                f"  Next auto-check in  <b>{user.get('interval', 60)} min</b>",
+                f"  {E_SAT}  <code>{text}</code>\n\n"
+                f"  {E_CLOCK}  Next check in   <b>{user.get('interval', 60)} min</b>",
                 reply_markup=Kbd([
                     [Btn("➕  Add Another", callback_data="add"),
-                     Btn("◀  Menu",        callback_data="menu")],
+                     Btn("◀️  Menu",        callback_data="menu")],
                 ]),
             )
 
@@ -371,17 +390,19 @@ def _build_app(token: str):
                 mins = int(text)
             except ValueError:
                 await update.message.reply_html(
-                    f"{E_ERR}  Please send a <b>number</b> of minutes.",
+                    f"{E_ERR}  <b>Invalid Input</b>\n\n"
+                    f"Please send a <b>number</b> of minutes.",
                     reply_markup=_kb_cancel(),
                 )
                 return
 
             if mins < 5:
                 await update.message.reply_html(
-                    f"{E_WARN}  Minimum interval is  <b>5 minutes</b>.",
+                    f"{E_WARN}  <b>Too Short</b>\n\n"
+                    f"Minimum interval is  <b>5 minutes</b>.",
                     reply_markup=Kbd([
                         [Btn("⏱  Try Again", callback_data="interval"),
-                         Btn("◀  Menu",     callback_data="menu")],
+                         Btn("◀️  Menu",     callback_data="menu")],
                     ]),
                 )
                 return
@@ -393,11 +414,13 @@ def _build_app(token: str):
                 _schedule(ctx.job_queue, uid, mins)
 
             await update.message.reply_html(
-                f"{E_OK}  Interval set to  <b>{mins} minutes</b>",
+                f"{E_OK}  <b>Interval Updated</b>\n"
+                f"{_HR}\n\n"
+                f"  {E_CLOCK}  Auto-check every   <b>{mins} min</b>",
                 reply_markup=_kb_back(),
             )
 
-        # no active state → show menu ──────────────
+        # no state → show menu ─────────────────────
         else:
             await _show_menu(update, ctx)
 
@@ -411,57 +434,52 @@ def _build_app(token: str):
         uid  = str(update.effective_user.id)
         data = query.data
 
-        # menu
         if data == "menu":
             ctx.user_data.pop("awaiting", None)
             await _show_menu(update, ctx, edit=True)
 
-        # check all ────────────────────────────────
+        # ── check all ─────────────────────────────
         elif data == "check":
             _, user = _get_user(uid)
             ips = user.get("ips", [])
             if not ips:
                 await query.edit_message_text(
-                    f"{E_WARN}  <b>No IPs to check.</b>\n\n"
-                    f"Add some IPs first.",
+                    f"{E_WARN}  <b>No IPs to Monitor</b>\n\n"
+                    f"Add some IPs first to start checking.",
                     parse_mode="HTML",
                     reply_markup=Kbd([
                         [Btn("➕  Add IP", callback_data="add"),
-                         Btn("◀  Menu",  callback_data="menu")],
+                         Btn("◀️  Menu",  callback_data="menu")],
                     ]),
                 )
                 return
-
             n = len(ips)
             await query.edit_message_text(
                 f"{E_SEARCH}  <b>Checking {n} IP{'s' if n > 1 else ''}…</b>\n"
                 f"{_HR}\n\n"
-                f"  Please wait  ·  30–60 seconds",
+                f"  {E_CLOCK}  Please wait   ·   30 – 60 seconds",
                 parse_mode="HTML",
             )
-
             loop     = asyncio.get_running_loop()
             tasks    = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
             res_list = await asyncio.gather(*tasks)
-            text     = _results_text(ips, res_list)
-
             await query.edit_message_text(
-                text,
+                _results_text(ips, res_list),
                 parse_mode="HTML",
                 reply_markup=_kb_back(also_check=True),
             )
 
-        # list ─────────────────────────────────────
+        # ── list ──────────────────────────────────
         elif data == "list":
             _, user = _get_user(uid)
-            ips = user.get("ips", [])
-            if not ips:
+            if not user.get("ips"):
                 await query.edit_message_text(
-                    f"{E_WARN}  <b>No IPs monitored.</b>",
+                    f"{E_WARN}  <b>No IPs Yet</b>\n\n"
+                    f"Your monitoring list is empty.",
                     parse_mode="HTML",
                     reply_markup=Kbd([
                         [Btn("➕  Add IP", callback_data="add"),
-                         Btn("◀  Menu",  callback_data="menu")],
+                         Btn("◀️  Menu",  callback_data="menu")],
                     ]),
                 )
                 return
@@ -471,29 +489,30 @@ def _build_app(token: str):
                 reply_markup=Kbd([
                     [Btn("➕  Add",    callback_data="add"),
                      Btn("🗑  Remove", callback_data="remove"),
-                     Btn("◀  Menu",   callback_data="menu")],
+                     Btn("◀️  Menu",  callback_data="menu")],
                 ]),
             )
 
-        # add ──────────────────────────────────────
+        # ── add ───────────────────────────────────
         elif data == "add":
             ctx.user_data["awaiting"] = _S_IP
             await query.edit_message_text(
                 f"{E_ADD}  <b>Add IP</b>\n"
                 f"{_HR}\n\n"
-                f"Send the IPv4 address to monitor:\n\n"
-                f"  <code>e.g.  1.2.3.4</code>",
+                f"Send the IPv4 address you want to monitor:\n\n"
+                f"  <code>e.g.   1 . 2 . 3 . 4</code>",
                 parse_mode="HTML",
                 reply_markup=_kb_cancel(),
             )
 
-        # remove ───────────────────────────────────
+        # ── remove ────────────────────────────────
         elif data == "remove":
             _, user = _get_user(uid)
             ips = user.get("ips", [])
             if not ips:
                 await query.edit_message_text(
-                    f"{E_WARN}  <b>No IPs to remove.</b>",
+                    f"{E_WARN}  <b>Nothing to Remove</b>\n\n"
+                    f"Your monitoring list is already empty.",
                     parse_mode="HTML",
                     reply_markup=_kb_back(),
                 )
@@ -501,7 +520,7 @@ def _build_app(token: str):
             await query.edit_message_text(
                 f"{E_TRASH}  <b>Remove IP</b>\n"
                 f"{_HR}\n\n"
-                f"  Select the IP to remove:",
+                f"  Tap an IP below to remove it:",
                 parse_mode="HTML",
                 reply_markup=_kb_remove(ips),
             )
@@ -515,31 +534,31 @@ def _build_app(token: str):
                 await query.edit_message_text(
                     f"{E_TRASH}  <b>Removed</b>\n"
                     f"{_HR}\n\n"
-                    f"  <code>{ip_del}</code>",
+                    f"  {E_SAT}  <code>{ip_del}</code>",
                     parse_mode="HTML",
                     reply_markup=Kbd([
                         [Btn("🗑  Remove Another", callback_data="remove"),
-                         Btn("◀  Menu",           callback_data="menu")],
+                         Btn("◀️  Menu",           callback_data="menu")],
                     ]),
                 )
             else:
                 await _show_menu(update, ctx, edit=True)
 
-        # interval ─────────────────────────────────
+        # ── interval ──────────────────────────────
         elif data == "interval":
             _, user = _get_user(uid)
             ctx.user_data["awaiting"] = _S_INTERVAL
             await query.edit_message_text(
                 f"{E_CLOCK}  <b>Set Interval</b>\n"
                 f"{_HR}\n\n"
-                f"  Current:  <b>every {user.get('interval', 60)} min</b>\n\n"
-                f"Send the new interval in minutes:\n\n"
-                f"  <code>minimum  5</code>",
+                f"  Current:   every  <b>{user.get('interval', 60)} min</b>\n\n"
+                f"Send the new auto-check interval in minutes:\n\n"
+                f"  <code>minimum   5 min</code>",
                 parse_mode="HTML",
                 reply_markup=_kb_cancel(),
             )
 
-        # pause / resume ───────────────────────────
+        # ── pause / resume ────────────────────────
         elif data in ("pause", "resume"):
             store, user = _get_user(uid)
             active      = (data == "resume")
