@@ -967,6 +967,7 @@ def _build_app(token: str):
 # ── public API ────────────────────────────────────────────────────────────────
 
 def run(token: str) -> None:
+    asyncio.set_event_loop(asyncio.new_event_loop())
     app = _build_app(token)
     print("ForceCheck Bot started. Press Ctrl+C to stop.")
     app.run_polling(drop_pending_updates=True)
