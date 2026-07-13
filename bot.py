@@ -416,28 +416,43 @@ def _help_text() -> str:
         f"{E_SEARCH}  <b>Guide  &  Help</b>\n"
         f"{_HR}\n\n"
 
+        f"<i>ForceCheck watches your IPs and domains and pings them\n"
+        f"from 100+ nodes worldwide — telling you if they're reachable\n"
+        f"inside Iran, globally, or blocked.</i>\n\n"
+
+        f"{_DIV}\n\n"
+
         f"{E_SEARCH}  <b>Check All Now</b>\n"
-        f"  Instantly pings all your IPs from\n"
-        f"  <b>100+ nodes</b> around the world.\n\n"
+        f"  Instantly check every target on your list from\n"
+        f"  <b>100+ nodes</b>. Pick one for a live per-node\n"
+        f"  ping, or check them all at once.\n\n"
 
         f"{E_ADD}  <b>Add IP / Domain</b>\n"
-        f"  Add an IP address or domain name to monitor.\n"
-        f"  <i>e.g. 1.2.3.4  or  example.com · Max 20</i>\n\n"
+        f"  Add an IPv4 address or a domain name to watch.\n"
+        f"  <i>e.g.  1.2.3.4   ·   example.com   ·   max 20</i>\n\n"
 
         f"{E_TRASH}  <b>Remove</b>\n"
-        f"  Tap an entry to stop monitoring it.\n\n"
+        f"  Tap an entry to stop watching it.\n\n"
 
         f"{E_CLOCK}  <b>Set Interval</b>\n"
-        f"  How often the bot auto-checks your IPs.\n"
-        f"  <i>Min: 5 min · Recommended: 30 – 60 min</i>\n\n"
+        f"  How often the bot auto-checks your list and\n"
+        f"  alerts you with the results.\n"
+        f"  <i>Min: 5 min  ·  recommended: 30 – 60 min</i>\n\n"
 
         f"{E_PAUSE}  <b>Pause</b>  /  {E_PLAY}  <b>Resume</b>\n"
-        f"  Stop or restart scheduled auto-checks.\n"
-        f"  <i>Manual checks always work when paused.</i>\n\n"
+        f"  Stop or restart the scheduled auto-checks.\n"
+        f"  <i>Manual checks still work while paused.</i>\n\n"
+
+        f"{E_GLOBE}  <b>Domain Check</b>\n"
+        f"  Look up any domain's availability & WHOIS —\n"
+        f"  registrar, creation/expiry dates, nameservers.\n"
+        f"  <i>Send a domain, get instant results.</i>\n\n"
 
         f"{_HR}\n\n"
 
-        f"<b>Status Legend</b>\n\n"
+        f"<b>Status Legend</b>\n"
+        f"<i>A target counts as reachable when enough nodes\n"
+        f"respond: ≥2 in Iran, ≥5 globally.</i>\n\n"
 
         f"  {E_OK}  <b>Globally Accessible</b>\n"
         f"  <i>Reachable from Iran AND global nodes.</i>\n\n"
