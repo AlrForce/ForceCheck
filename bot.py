@@ -151,7 +151,12 @@ def _check_ip(ip: str, max_nodes: int = 25) -> dict:
 
 def _check_domain_data(domain: str) -> dict:
     import requests, socket as _sock
-    domain = domain.lower().strip().lstrip("https://").lstrip("http://").split("/")[0]
+    domain = domain.strip().lower()
+    for scheme in ("https://", "http://"):
+        if domain.startswith(scheme):
+            domain = domain[len(scheme):]
+            break
+    domain = domain.split("/")[0]
     if domain.startswith("www."):
         domain = domain[4:]
     if "." not in domain:
