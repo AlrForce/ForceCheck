@@ -308,15 +308,18 @@ def _menu_text(user: dict) -> str:
     ips      = user.get("ips", [])
     interval = user.get("interval", 60)
     active   = user.get("active", True)
+    notify   = user.get("notify_mode", "all")
     n        = len(ips)
     ip_str   = f"<b>{n} target{'s' if n != 1 else ''}</b>" if n else "<b>none</b>"
     play     = E_PLAY if active else E_PAUSE
     st_label = "<b>Active</b> — auto-checks running" if active else "<b>Paused</b> — manual only"
+    alert    = "<b>Only when accessible</b>" if notify == "up" else "<b>Always</b>"
     return (
         f"{E_GEM}  <b>ForceCheck Monitor</b>\n"
         f"{_HR}\n\n"
         f"  {E_SAT}  <b>Watching</b>      {ip_str}\n"
         f"  {E_CLOCK}  <b>Interval</b>      every  <b>{interval} min</b>\n"
+        f"  🔔  <b>Alerts</b>        {alert}\n"
         f"  {play}  <b>Status</b>        {st_label}\n\n"
         f"{_HR}\n"
         f"{E_GLOBE}  <i>Monitoring from 100+ global nodes</i>"
@@ -439,6 +442,11 @@ def _help_text() -> str:
         f"  alerts you with the results.\n"
         f"  <i>Min: 5 min  ·  recommended: 30 – 60 min</i>\n\n"
 
+        f"🔔  <b>Alerts</b>  <i>(on the interval screen)</i>\n"
+        f"  <b>Always</b> — get every scheduled report.\n"
+        f"  <b>Only when accessible</b> — stay silent unless\n"
+        f"  a target is reachable.\n\n"
+
         f"{E_PAUSE}  <b>Pause</b>  /  {E_PLAY}  <b>Resume</b>\n"
         f"  Stop or restart the scheduled auto-checks.\n"
         f"  <i>Manual checks still work while paused.</i>\n\n"
@@ -530,6 +538,33 @@ def _build_app(token: str):
              Btn("ℹ️  About",              callback_data="about")],
         ])
 
+    def _interval_view(user: dict):
+        """Text + keyboard for the Set-Interval screen (also hosts alert mode)."""
+        notify = user.get("notify_mode", "all")
+        if notify == "up":
+            alert_line = f"  🔔  <b>Alerts</b>       <b>Only when accessible</b>"
+            btn_label  = "🔔  Alerts:  Only when accessible"
+        else:
+            alert_line = f"  🔔  <b>Alerts</b>       <b>Always</b>"
+            btn_label  = "🔔  Alerts:  Always"
+        text = (
+            f"{E_CLOCK}  <b>Set Auto-Check Interval</b>\n"
+            f"{_HR}\n\n"
+            f"  Current:  every  <b>{user.get('interval', 60)} min</b>\n"
+            f"{alert_line}\n\n"
+            f"<i>How often should the bot check your list?</i>\n\n"
+            f"  {E_OK}  Minimum:        <b>5 min</b>\n"
+            f"  {E_GLOBE}  Recommended:  <b>30 – 60 min</b>\n\n"
+            f"{_DIV}\n\n"
+            f"<i>Send the new interval in minutes — or tap below\n"
+            f"to choose when the bot messages you:</i>"
+        )
+        kb = Kbd([
+            [Btn(btn_label, callback_data="notify_toggle")],
+            [Btn("✖  Cancel", callback_data="menu")],
+        ])
+        return text, kb
+
     def _kb_check_select(ips: list) -> Kbd:
         rows = [[Btn(f"📡  {ip}", callback_data=f"check_one:{ip}")] for ip in ips]
         rows.append([Btn("🔍  Check All",  callback_data="check_all")])
@@ -564,7 +599,14 @@ def _build_app(token: str):
         loop     = asyncio.get_running_loop()
         tasks    = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
         res_list = await asyncio.gather(*tasks)
-        text     = _results_text(ips, res_list, is_scheduled=True, interval=interval)
+
+        # notify_mode == "up": stay silent unless something is accessible
+        if user.get("notify_mode", "all") == "up":
+            any_up = any(r and (r.get("iran_ok") or r.get("global_ok")) for r in res_list)
+            if not any_up:
+                return
+
+        text = _results_text(ips, res_list, is_scheduled=True, interval=interval)
         try:
             await ctx.bot.send_message(
                 chat_id=int(uid),
@@ -737,10 +779,13 @@ def _build_app(token: str):
             if user.get("active", True) and user.get("ips"):
                 _schedule(ctx.job_queue, uid, mins)
 
+            alert = ("Only when accessible" if user.get("notify_mode", "all") == "up"
+                     else "Always")
             await update.message.reply_html(
                 f"{E_OK}  <b>Interval Updated</b>\n"
                 f"{_HR}\n\n"
-                f"  {E_CLOCK}  Auto-check every   <b>{mins} min</b>\n\n"
+                f"  {E_CLOCK}  Auto-check every   <b>{mins} min</b>\n"
+                f"  🔔  Alerts:            <b>{alert}</b>\n\n"
                 f"<i>Next scheduled check will run in {mins} min.</i>",
                 reply_markup=_kb_back(),
             )
@@ -1072,18 +1117,17 @@ def _build_app(token: str):
         elif data == "interval":
             _, user = _get_user(uid)
             ctx.user_data["awaiting"] = _S_INTERVAL
-            await query.edit_message_text(
-                f"{E_CLOCK}  <b>Set Auto-Check Interval</b>\n"
-                f"{_HR}\n\n"
-                f"  Current:  every  <b>{user.get('interval', 60)} min</b>\n\n"
-                f"<i>How often should the bot check your IPs?</i>\n\n"
-                f"  {E_OK}  Minimum:        <b>5 min</b>\n"
-                f"  {E_GLOBE}  Recommended:  <b>30 – 60 min</b>\n\n"
-                f"{_DIV}\n\n"
-                f"<i>Send the new interval in minutes:</i>",
-                parse_mode="HTML",
-                reply_markup=_kb_cancel(),
-            )
+            text, kb = _interval_view(user)
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
+
+        # ── toggle alert mode (from interval screen) ──
+        elif data == "notify_toggle":
+            store, user = _get_user(uid)
+            user["notify_mode"] = "all" if user.get("notify_mode", "all") == "up" else "up"
+            _save(store)
+            ctx.user_data["awaiting"] = _S_INTERVAL  # keep interval input active
+            text, kb = _interval_view(user)
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
 
         # ── pause / resume ────────────────────────
         elif data in ("pause", "resume"):
