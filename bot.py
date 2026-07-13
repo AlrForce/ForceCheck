@@ -107,7 +107,7 @@ def _poll_results(sess, rid: str, n: int) -> dict:
     return results
 
 
-def _check_ip(ip: str, max_nodes: int = 25) -> dict:
+def _check_ip(ip: str, max_nodes: int = 220) -> dict:
     import requests
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
@@ -851,7 +851,7 @@ def _build_app(token: str):
             try:
                 pr = await loop.run_in_executor(None, lambda: sess.get(
                     f"{CHECK_HOST}/check-ping",
-                    params={"host": ip, "max_nodes": 25},
+                    params={"host": ip, "max_nodes": 220},
                     timeout=15,
                 ))
                 pr.raise_for_status()
