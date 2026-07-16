@@ -46,6 +46,7 @@ E_TRASH  = _em("5039614900280754969", "🗑")
 E_PAUSE  = _em("5042036407137207122", "⏸️")
 E_PLAY   = _em("5039753786638205957", "▶️")
 E_BACK   = _em("5248966320845768373", "◀️")
+E_BELL   = _em("5458603043203327669", "🔔")
 
 # ── state keys ────────────────────────────────────────────────────────────────
 _S_IP       = "ip"
@@ -313,13 +314,13 @@ def _menu_text(user: dict) -> str:
     ip_str   = f"<b>{n} target{'s' if n != 1 else ''}</b>" if n else "<b>none</b>"
     play     = E_PLAY if active else E_PAUSE
     st_label = "<b>Active</b> — auto-checks running" if active else "<b>Paused</b> — manual only"
-    alert    = "<b>Only when accessible</b>" if notify == "up" else "<b>Always</b>"
+    alert    = "<b>Only when Iran Access</b>" if notify == "up" else "<b>Always</b>"
     return (
         f"{E_GEM}  <b>ForceCheck Monitor</b>\n"
         f"{_HR}\n\n"
         f"  {E_SAT}  <b>Watching</b>      {ip_str}\n"
         f"  {E_CLOCK}  <b>Interval</b>      every  <b>{interval} min</b>\n"
-        f"  🔔  <b>Alerts</b>        {alert}\n"
+        f"  {E_BELL}  <b>Alerts</b>        {alert}\n"
         f"  {play}  <b>Status</b>        {st_label}\n\n"
         f"{_HR}\n"
         f"{E_GLOBE}  <i>Monitoring from 100+ global nodes</i>"
@@ -442,10 +443,10 @@ def _help_text() -> str:
         f"  alerts you with the results.\n"
         f"  <i>Min: 5 min  ·  recommended: 30 – 60 min</i>\n\n"
 
-        f"🔔  <b>Alerts</b>  <i>(on the interval screen)</i>\n"
+        f"{E_BELL}  <b>Alerts</b>  <i>(on the interval screen)</i>\n"
         f"  <b>Always</b> — get every scheduled report.\n"
-        f"  <b>Only when accessible</b> — stay silent unless\n"
-        f"  a target is reachable.\n\n"
+        f"  <b>Only when Iran Access</b> — stay silent unless\n"
+        f"  a target is reachable from Iran.\n\n"
 
         f"{E_PAUSE}  <b>Pause</b>  /  {E_PLAY}  <b>Resume</b>\n"
         f"  Stop or restart the scheduled auto-checks.\n"
@@ -542,10 +543,10 @@ def _build_app(token: str):
         """Text + keyboard for the Set-Interval screen (also hosts alert mode)."""
         notify = user.get("notify_mode", "all")
         if notify == "up":
-            alert_line = f"  🔔  <b>Alerts</b>       <b>Only when accessible</b>"
-            btn_label  = "🔔  Alerts:  Only when accessible"
+            alert_line = f"  {E_BELL}  <b>Alerts</b>       <b>Only when Iran Access</b>"
+            btn_label  = "🔔  Alerts:  Only when Iran Access"
         else:
-            alert_line = f"  🔔  <b>Alerts</b>       <b>Always</b>"
+            alert_line = f"  {E_BELL}  <b>Alerts</b>       <b>Always</b>"
             btn_label  = "🔔  Alerts:  Always"
         text = (
             f"{E_CLOCK}  <b>Set Auto-Check Interval</b>\n"
@@ -600,10 +601,10 @@ def _build_app(token: str):
         tasks    = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
         res_list = await asyncio.gather(*tasks)
 
-        # notify_mode == "up": stay silent unless something is accessible
+        # notify_mode == "up": stay silent unless a target is reachable from Iran
         if user.get("notify_mode", "all") == "up":
-            any_up = any(r and (r.get("iran_ok") or r.get("global_ok")) for r in res_list)
-            if not any_up:
+            any_iran = any(r and r.get("iran_ok") for r in res_list)
+            if not any_iran:
                 return
 
         text = _results_text(ips, res_list, is_scheduled=True, interval=interval)
@@ -779,13 +780,13 @@ def _build_app(token: str):
             if user.get("active", True) and user.get("ips"):
                 _schedule(ctx.job_queue, uid, mins)
 
-            alert = ("Only when accessible" if user.get("notify_mode", "all") == "up"
+            alert = ("Only when Iran Access" if user.get("notify_mode", "all") == "up"
                      else "Always")
             await update.message.reply_html(
                 f"{E_OK}  <b>Interval Updated</b>\n"
                 f"{_HR}\n\n"
                 f"  {E_CLOCK}  Auto-check every   <b>{mins} min</b>\n"
-                f"  🔔  Alerts:            <b>{alert}</b>\n\n"
+                f"  {E_BELL}  Alerts:            <b>{alert}</b>\n\n"
                 f"<i>Next scheduled check will run in {mins} min.</i>",
                 reply_markup=_kb_back(),
             )
