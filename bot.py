@@ -852,22 +852,22 @@ def _build_app(token: str):
             ips = user.get("ips", [])
             if not ips:
                 await query.edit_message_text(
-                    f"{E_WARN}  <b>No IPs to Monitor</b>\n"
+                    f"{E_WARN}  <b>Nothing to Check</b>\n"
                     f"{_HR}\n\n"
                     f"<i>Your watch list is empty.\n"
-                    f"Add an IP first to start monitoring.</i>",
+                    f"Add an IP or domain first to start monitoring.</i>",
                     parse_mode="HTML",
                     reply_markup=Kbd([
-                        [Btn("➕  Add IP", callback_data="add"),
-                         Btn("◀️  Menu",  callback_data="menu")],
+                        [Btn("➕  Add IP / Domain", callback_data="add"),
+                         Btn("◀️  Menu",           callback_data="menu")],
                     ]),
                 )
                 return
             await query.edit_message_text(
-                f"{E_SEARCH}  <b>Select IP to Check</b>\n"
+                f"{E_SEARCH}  <b>Select Target to Check</b>\n"
                 f"{_HR}\n\n"
-                f"<i>Tap an IP for a detailed per-node ping,\n"
-                f"or check all IPs at once:</i>",
+                f"<i>Tap one for a detailed per-node ping,\n"
+                f"or check everything at once:</i>",
                 parse_mode="HTML",
                 reply_markup=_kb_check_select(ips),
             )
