@@ -445,8 +445,9 @@ def _help_text() -> str:
 
         f"{E_BELL}  <b>Alerts</b>  <i>(on the interval screen)</i>\n"
         f"  <b>Always</b> — get every scheduled report.\n"
-        f"  <b>Only when Iran Access</b> — stay silent unless\n"
-        f"  a target is reachable from Iran.\n\n"
+        f"  <b>Only when Iran Access</b> — alert only when a\n"
+        f"  target works inside Iran but is blocked globally.\n"
+        f"  <i>Silent when everything is healthy.</i>\n\n"
 
         f"{E_PAUSE}  <b>Pause</b>  /  {E_PLAY}  <b>Resume</b>\n"
         f"  Stop or restart the scheduled auto-checks.\n"
@@ -601,10 +602,15 @@ def _build_app(token: str):
         tasks    = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
         res_list = await asyncio.gather(*tasks)
 
-        # notify_mode == "up": stay silent unless a target is reachable from Iran
+        # notify_mode == "up": alert only when a target is "Iran Access Only"
+        # (reachable from Iran but blocked globally). Stay silent if every
+        # target is globally healthy or fully unreachable.
         if user.get("notify_mode", "all") == "up":
-            any_iran = any(r and r.get("iran_ok") for r in res_list)
-            if not any_iran:
+            iran_only = any(
+                r and r.get("iran_ok") and not r.get("global_ok")
+                for r in res_list
+            )
+            if not iran_only:
                 return
 
         text = _results_text(ips, res_list, is_scheduled=True, interval=interval)
