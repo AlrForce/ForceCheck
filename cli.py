@@ -43,15 +43,15 @@ BANNER = (
 )
 
 _ITEMS = [
-    ("info!",     "IP / ASN WHOIS via RDAP",         "IP, hostname, or ASN", None),
-    ("ping!",     "distributed ping",                "Host or IP",           None),
-    ("tcp!",      "distributed TCP port check",      "Host or IP",           None),
-    ("http!",     "HTTP check from global nodes",    "URL or host",          None),
-    ("trace!",    "distributed traceroute",          "Host or IP",           None),
-    ("bgp!",      "BGP route lookup",                "IP, prefix, or ASN",   None),
-    ("domain!",   "domain availability & WHOIS",     "Domain name",          None),
-    ("checkall!", "run all checks in parallel",      "Host or IP",           None),
-    ("bot!",      "Telegram monitor bot",            None,                   None),
+    ("info!",     "IP & ASN intel",     "IP, hostname, or ASN", None),
+    ("ping!",     "global ping",        "Host or IP",           None),
+    ("tcp!",      "port reachability",  "Host or IP",           None),
+    ("http!",     "HTTP status",        "URL or host",          None),
+    ("trace!",    "path trace",         "Host or IP",           None),
+    ("bgp!",      "BGP routing",        "IP, prefix, or ASN",   None),
+    ("domain!",   "domain & WHOIS",     "Domain name",          None),
+    ("checkall!", "all checks at once", "Host or IP",           None),
+    ("bot!",      "Telegram monitor",   None,                   None),
 ]
 
 
