@@ -6,6 +6,7 @@ checkall.py
 cli.py
 colors.py
 _deps.py
+dns.py
 http.py
 ping.py
 tcp.py

@@ -5,10 +5,13 @@
 ForceCheck is a lightweight CLI tool for network engineers, sysadmins, and security researchers who want real-world network visibility without leaving the command line.
 
 - **`ping!`** — distributed ping from 200+ nodes across 50+ countries via [check-host.net](https://check-host.net)
+- **`tcp!`** — distributed TCP port reachability check from global nodes
 - **`bgp!`** — BGP route lookup via [lg.sdv.fr](http://lg.sdv.fr) looking glass (AS8839)
 - **`trace!`** — distributed traceroute from multiple global nodes
 - **`http!`** — HTTP status and response time check from global nodes
-- **`whois!`** — IP and ASN WHOIS lookup via RDAP
+- **`info!`** — IP and ASN WHOIS lookup via RDAP
+- **`domain!`** — domain availability & WHOIS
+- **`dns!`** — DNS poisoning detector — compares Iranian, ISP & global resolvers
 - **`checkall!`** — run all checks in parallel and display a unified summary
 - **`ff`** — interactive menu for all tools
 

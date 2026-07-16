@@ -31,6 +31,14 @@ def _enable_windows_ansi() -> bool:
         return False
 
 
+# On Windows, make sure Unicode box-drawing chars never crash on a legacy
+# codepage (cp1252) — happens when output is piped/redirected.
+if os.name == "nt":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 _COLOR = sys.stdout.isatty() and _enable_windows_ansi()
 
 G   = "\033[92m" if _COLOR else ""

@@ -50,6 +50,7 @@ _ITEMS = [
     ("trace!",    "path trace",         "Host or IP",           None),
     ("bgp!",      "BGP routing",        "IP, prefix, or ASN",   None),
     ("domain!",   "domain & WHOIS",     "Domain name",          None),
+    ("dns!",      "DNS poisoning scan", "Domain name",          None),
     ("checkall!", "all checks at once", "Host or IP",           None),
     ("bot!",      "Telegram monitor",   None,                   None),
 ]
@@ -155,7 +156,7 @@ def _show_about() -> None:
 def _run_uninstall() -> None:
     print(f"\n  {R}uninstall ForceCheck{N}\n")
     print(f"  {Y}This will remove ForceCheck and all its commands from your system.{N}")
-    print(f"  {DIM}(ping!  tcp!  bgp!  trace!  http!  info!  domain!  checkall!  ff){N}\n")
+    print(f"  {DIM}(ping!  tcp!  bgp!  trace!  http!  info!  domain!  dns!  checkall!  ff){N}\n")
 
     try:
         confirm = input(f"    {R}Type 'yes' to confirm:{N} ").strip().lower()
@@ -188,7 +189,7 @@ def _run_uninstall() -> None:
         pass
     for scripts in dict.fromkeys(d for d in script_dirs if d):
         for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!",
-                    "domain!", "checkall!", "bot!", "ff", "fc", "fcheck"):
+                    "domain!", "dns!", "checkall!", "bot!", "ff", "fc", "fcheck"):
             for suffix in ("", ".cmd", ".exe"):
                 path = _os.path.join(scripts, cmd + suffix)
                 if _os.path.exists(path):
@@ -653,13 +654,17 @@ def _show_help() -> None:
         ("domain!",
          "Domain availability & WHOIS registration info.",
          ["domain! example.com"]),
+        ("dns!",
+         "DNS poisoning detector — compares Iranian, ISP & global\n"
+         "  resolvers to reveal DNS-level filtering.",
+         ["dns! google.com", "dns! twitter.com"]),
         ("checkall!",
          "Run  ping + http + info  in parallel on one target.",
          ["checkall! 1.2.3.4"]),
         ("bot!",
          "Telegram bot — monitors IPs on a schedule.",
          ["bot! --token <TOKEN>",
-          "ff → 9  (configure token & allowed IDs)"]),
+          "ff → 10  (configure token & allowed IDs)"]),
     ]
 
     for cmd, desc, examples in cmds:
@@ -702,7 +707,7 @@ def _show_help() -> None:
     tips = [
         "All checks use  check-host.net  under the hood.",
         "Commands work standalone:  ping! 8.8.8.8",
-        "Telegram bot:  ff → 9 → configure → start",
+        "Telegram bot:  ff → 10 → configure → start",
         "Update anytime:  ff → u",
         "Find your Telegram chat ID via  @userinfobot",
     ]
@@ -770,7 +775,7 @@ def _run_update() -> None:
     # ── fetch file manifest from GitHub (always up-to-date list) ──────────
     _FALLBACK = [
         "__init__.py", "ansinfo.py", "bgp.py", "bot.py", "checkall.py",
-        "cli.py", "colors.py", "_deps.py", "http.py", "ping.py",
+        "cli.py", "colors.py", "_deps.py", "dns.py", "http.py", "ping.py",
         "tcp.py", "trace.py", "whois.py",
     ]
     pyfiles = _FALLBACK
@@ -800,7 +805,7 @@ def _run_update() -> None:
     _CMDS = [
         ("ping!", "ping"), ("tcp!", "tcp"), ("bgp!", "bgp"),
         ("trace!", "trace"), ("http!", "http"), ("info!", "ansinfo"),
-        ("domain!", "whois"), ("checkall!", "checkall"),
+        ("domain!", "whois"), ("dns!", "dns"), ("checkall!", "checkall"),
         ("bot!", "bot"), ("ff", "cli"),
     ]
     for cmd, mod in _CMDS:
@@ -864,7 +869,7 @@ def _run(choice: int) -> None:
     cmd_name, _, target_label, has_nodes = _ITEMS[choice - 1]
 
     if target_label is None:
-        if choice == 9:
+        if choice == 10:
             _bot_settings()
         return
 
@@ -925,6 +930,9 @@ def _run(choice: int) -> None:
             from .whois import run
             run(target)
         elif choice == 8:
+            from .dns import run
+            run(target)
+        elif choice == 9:
             from .checkall import run
             run(target)
     except SystemExit as e:

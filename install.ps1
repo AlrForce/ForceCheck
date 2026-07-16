@@ -118,6 +118,7 @@ $cmds = [ordered]@{
     "http!"     = "http"
     "info!"     = "ansinfo"
     "domain!"   = "whois"
+    "dns!"      = "dns"
     "checkall!" = "checkall"
     "bot!"      = "bot"
 }
