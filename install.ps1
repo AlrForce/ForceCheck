@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 
 # GitHub requires TLS 1.2 (older Windows PowerShell defaults to TLS 1.0)
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
-
+ 
 $RAW = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
 
 function Say-Ok($m)   { Write-Host "  [ok] $m"  -ForegroundColor Green }
