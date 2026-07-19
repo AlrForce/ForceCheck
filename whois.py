@@ -37,7 +37,7 @@ def _rdap(sess, domain: str) -> tuple:
             return "available", {}
     except Exception:
         pass
-    # fallback: DNS
+    # fallback  DNS
     try:
         socket.getaddrinfo(domain, None)
         return "registered", {}
