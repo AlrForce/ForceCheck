@@ -12,7 +12,7 @@ def _importable(module: str) -> bool:
         return True
     except ImportError:
         return False
-
+ 
 
 def ensure_deps() -> None:
     missing = [(mod, pkg) for mod, pkg in _DEPS if not _importable(mod)]
