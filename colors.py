@@ -1,7 +1,7 @@
 import sys
 import os
 
-
+ 
 def _enable_windows_ansi() -> bool:
     """Enable ANSI/VT escape processing on Windows 10+ consoles.
 
