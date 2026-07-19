@@ -1,6 +1,6 @@
-"""
-tcp — distributed TCP port check via check-host.net
-
+""" 
+tcp — distributed TCP port check via check-host.net 
+ 
 Usage:
   tcp! <host> <port> [-n NODES]
 """
@@ -19,7 +19,7 @@ _COL_LOC  = 26
 _COL_RTT  = 9
 _W        = _COL_NODE + _COL_LOC + _COL_RTT + 16
 
-
+ 
 def _is_iran(info: list) -> bool:
     code = (info[0] if len(info) > 0 else "").lower()
     name = (info[1] if len(info) > 1 else "").lower()
