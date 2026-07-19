@@ -7,7 +7,7 @@ and compares the answers to reveal DNS-level filtering.
 Usage:
   dns! <domain>
 """
-
+ 
 import sys
 import socket
 import struct
