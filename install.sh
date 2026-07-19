@@ -12,7 +12,7 @@ ok()    { printf "  ${G}✓${N}  %s\n" "$1"; }
 info()  { printf "  ${DIM}→${N}  %s\n" "$1"; }
 fail()  { printf "  ${R}✗${N}  %s\n" "$1"; }
 step()  { printf "\n  ${B}▶${N}  ${B}%s${N}\n" "$1"; }
-
+ 
 clear
 printf "\n${C}"
 printf "  ╔%s╗\n" "$(printf '═%.0s' $(seq 1 $W))"
