@@ -61,8 +61,8 @@ def _get_filtered_nodes(region: str, count: int) -> list:
         )
         r.raise_for_status()
         data = r.json()
-        # some API responses wrap nodes under a "nodes" key
-        all_nodes = data.get("nodes", data) if isinstance(data, dict) else {}
+
+      all_nodes = data.get("nodes", data) if isinstance(data, dict) else {}
     except Exception:
         return []
 
