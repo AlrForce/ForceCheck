@@ -11,7 +11,7 @@ ForceCheck is a lightweight CLI tool for network engineers, sysadmins, and secur
 - **`http!`** — HTTP status and response time check from global nodes
 - **`info!`** — IP and ASN WHOIS lookup via RDAP
 - **`domain!`** — domain availability & WHOIS
-- **`dns!`** — DNS poisoning detector — compares Iranian, ISP & global resolvers
+- **`dns!`** — finds the fastest DNS with the best access to the outside, then sets it on your OS
 - **`checkall!`** — run all checks in parallel and display a unified summary
 - **`ff`** — interactive menu for all tools
 

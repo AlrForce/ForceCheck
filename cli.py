@@ -50,7 +50,7 @@ _ITEMS = [
     ("trace!",    "path trace",         "Host or IP",           None),
     ("bgp!",      "BGP routing",        "IP, prefix, or ASN",   None),
     ("domain!",   "domain & WHOIS",     "Domain name",          None),
-    ("dns!",      "DNS poisoning scan", "Domain name",          None),
+    ("dns!",      "best DNS finder",    None,                   None),
     ("checkall!", "all checks at once", "Host or IP",           None),
     ("bot!",      "Telegram monitor",   None,                   None),
 ]
@@ -655,9 +655,9 @@ def _show_help() -> None:
          "Domain availability & WHOIS registration info.",
          ["domain! example.com"]),
         ("dns!",
-         "DNS poisoning detector — compares Iranian, ISP & global\n"
-         "  resolvers to reveal DNS-level filtering.",
-         ["dns! google.com", "dns! twitter.com"]),
+         "Best-DNS finder — benchmarks Iranian & global resolvers\n"
+         "  by speed and real access, then sets it on your system.",
+         ["dns!", "dns! --apply-best", "dns! --list"]),
         ("checkall!",
          "Run  ping + http + info  in parallel on one target.",
          ["checkall! 1.2.3.4"]),
@@ -869,7 +869,17 @@ def _run(choice: int) -> None:
     cmd_name, _, target_label, has_nodes = _ITEMS[choice - 1]
 
     if target_label is None:
-        if choice == 10:
+        if choice == 8:
+            print(f"\n  {B}{cmd_name}{N}")
+            from .dns import run
+            try:
+                run()
+            except SystemExit as e:
+                if str(e):
+                    print(e)
+            except KeyboardInterrupt:
+                print(f"\n  {Y}aborted{N}")
+        elif choice == 10:
             _bot_settings()
         return
 
@@ -928,9 +938,6 @@ def _run(choice: int) -> None:
             run(target)
         elif choice == 7:
             from .whois import run
-            run(target)
-        elif choice == 8:
-            from .dns import run
             run(target)
         elif choice == 9:
             from .checkall import run
