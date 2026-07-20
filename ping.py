@@ -20,7 +20,7 @@ _COL_RTT  = 9
 _COL_REQ  = 5
 _W        = _COL_NODE + _COL_LOC + _COL_RTT + _COL_REQ + 14
 
- 
+
 def _is_iran(info: list) -> bool:
     code = (info[0] if len(info) > 0 else "").lower()
     name = (info[1] if len(info) > 1 else "").lower()

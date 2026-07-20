@@ -1,10 +1,10 @@
 [build-system]
 requires = ["setuptools>=43"]
 build-backend = "setuptools.build_meta"
- 
+
 [project]
 name = "forcecheck"
-version = "1.0.0"
+version = "1.80"
 description = "Distributed network diagnostics from the world's eyes"
 readme = "README.md"
 license = { text = "MIT" }

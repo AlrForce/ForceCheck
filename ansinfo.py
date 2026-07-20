@@ -3,7 +3,7 @@ ansinfo — IP & ASN lookup via RDAP + ipinfo.io
 
 Usage:
   info! <ip | hostname | prefix | asn>
-""" 
+"""
 
 import re
 import sys
