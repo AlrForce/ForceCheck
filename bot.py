@@ -357,14 +357,34 @@ def _ip_card(ip: str, res: dict) -> str:
     )
 
 
+def _ip_line(ip: str, res: dict) -> str:
+    """Compact one-line summary — used when many targets are shown, so the
+    message stays under Telegram's 4096-char limit (plain emoji to save space)."""
+    if not res:
+        return f"  ❌  <code>{ip}</code>  <i>unreachable</i>"
+    ir, gl = res["iran_ok"], res["global_ok"]
+    io, it = res["iran_nodes"], res["total_iran"]
+    go, gt = res["global_nodes"], res["total_global"]
+    if   ir and     gl:  icon = "✅"
+    elif ir and not gl:  icon = "🔴"
+    elif not ir and gl:  icon = "⚠️"
+    else:                icon = "❌"
+    return f"  {icon}  <code>{ip}</code>  ·  🇮🇷 <b>{io}/{it}</b>  🌐 <b>{go}/{gt}</b>"
+
+
 def _results_text(
     ips: list, res_list: list, is_scheduled: bool = False, interval: int = 0
 ) -> str:
     icon   = E_CLOCK if is_scheduled else E_SEARCH
     title  = "Scheduled Check" if is_scheduled else "Check Results"
     n      = len(ips)
-    cards  = [_ip_card(ip, r) for ip, r in zip(ips, res_list)]
-    sep    = f"\n\n{_DIV}\n\n"
+    # Big cards for a few targets; compact lines for many (Telegram 4096 limit).
+    if n > 6:
+        cards = [_ip_line(ip, r) for ip, r in zip(ips, res_list)]
+        sep   = "\n"
+    else:
+        cards = [_ip_card(ip, r) for ip, r in zip(ips, res_list)]
+        sep   = f"\n\n{_DIV}\n\n"
 
     footer = (
         f"\n\n{_HR}\n{E_CLOCK}  <i>Next check in  <b>{interval} min</b></i>"
@@ -1020,15 +1040,26 @@ def _build_app(token: str):
             loop     = asyncio.get_running_loop()
             tasks    = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
             res_list = await asyncio.gather(*tasks)
-            await query.edit_message_text(
-                _results_text(ips, res_list),
-                parse_mode="HTML",
-                reply_markup=Kbd([
-                    [Btn("🔄  Check All Again", callback_data="check_all"),
-                     Btn("◀️  Back",            callback_data="check")],
-                    [Btn("◀️  Menu", callback_data="menu")],
-                ]),
-            )
+            kb_res   = Kbd([
+                [Btn("🔄  Check All Again", callback_data="check_all"),
+                 Btn("◀️  Back",            callback_data="check")],
+                [Btn("◀️  Menu", callback_data="menu")],
+            ])
+            try:
+                await query.edit_message_text(
+                    _results_text(ips, res_list),
+                    parse_mode="HTML", reply_markup=kb_res,
+                )
+            except Exception:
+                # Extremely long output — fall back to a plain summary.
+                ok = sum(1 for r in res_list if r and r.get("iran_ok") and r.get("global_ok"))
+                await query.edit_message_text(
+                    f"{E_SEARCH}  <b>Check complete</b>  ·  <b>{n}</b> targets\n"
+                    f"{_HR}\n\n"
+                    f"  {E_OK}  <b>{ok}</b> globally accessible\n"
+                    f"  <i>Open each target individually for details.</i>",
+                    parse_mode="HTML", reply_markup=kb_res,
+                )
 
         # ── list ──────────────────────────────────
         elif data == "list":
