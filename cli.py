@@ -51,6 +51,7 @@ _ITEMS = [
     ("bgp!",      "BGP routing",        "IP, prefix, or ASN",   None),
     ("domain!",   "domain & WHOIS",     "Domain name",          None),
     ("dns!",      "best DNS finder",    None,                   None),
+    ("mtu!",      "optimal MTU finder", None,                   None),
     ("checkall!", "all checks at once", "Host or IP",           None),
     ("bot!",      "Telegram monitor",   None,                   None),
 ]
@@ -156,7 +157,7 @@ def _show_about() -> None:
 def _run_uninstall() -> None:
     print(f"\n  {R}uninstall ForceCheck{N}\n")
     print(f"  {Y}This will remove ForceCheck and all its commands from your system.{N}")
-    print(f"  {DIM}(ping!  tcp!  bgp!  trace!  http!  info!  domain!  dns!  checkall!  ff){N}\n")
+    print(f"  {DIM}(ping!  tcp!  bgp!  trace!  http!  info!  domain!  dns!  mtu!  checkall!  ff){N}\n")
 
     try:
         confirm = input(f"    {R}Type 'yes' to confirm:{N} ").strip().lower()
@@ -189,7 +190,7 @@ def _run_uninstall() -> None:
         pass
     for scripts in dict.fromkeys(d for d in script_dirs if d):
         for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!",
-                    "domain!", "dns!", "checkall!", "bot!", "ff", "fc", "fcheck"):
+                    "domain!", "dns!", "mtu!", "checkall!", "bot!", "ff", "fc", "fcheck"):
             for suffix in ("", ".cmd", ".exe"):
                 path = _os.path.join(scripts, cmd + suffix)
                 if _os.path.exists(path):
@@ -658,13 +659,17 @@ def _show_help() -> None:
          "Best-DNS finder — benchmarks Iranian & global resolvers\n"
          "  by speed and real access, then sets it on your system.",
          ["dns!", "dns! --apply-best", "dns! --list"]),
+        ("mtu!",
+         "Optimal-MTU finder via Path MTU Discovery — detects\n"
+         "  tunnel overhead and can set it on your interface.",
+         ["mtu!", "mtu! 8.8.8.8", "mtu! --set"]),
         ("checkall!",
          "Run  ping + http + info  in parallel on one target.",
          ["checkall! 1.2.3.4"]),
         ("bot!",
          "Telegram bot — monitors IPs on a schedule.",
          ["bot! --token <TOKEN>",
-          "ff → 10  (configure token & allowed IDs)"]),
+          "ff → 11  (configure token & allowed IDs)"]),
     ]
 
     for cmd, desc, examples in cmds:
@@ -707,7 +712,7 @@ def _show_help() -> None:
     tips = [
         "All checks use  check-host.net  under the hood.",
         "Commands work standalone:  ping! 8.8.8.8",
-        "Telegram bot:  ff → 10 → configure → start",
+        "Telegram bot:  ff → 11 → configure → start",
         "Update anytime:  ff → u",
         "Find your Telegram chat ID via  @userinfobot",
     ]
@@ -775,8 +780,8 @@ def _run_update() -> None:
     # ── fetch file manifest from GitHub (always up-to-date list) ──────────
     _FALLBACK = [
         "__init__.py", "ansinfo.py", "bgp.py", "bot.py", "checkall.py",
-        "cli.py", "colors.py", "_deps.py", "dns.py", "http.py", "ping.py",
-        "tcp.py", "trace.py", "whois.py",
+        "cli.py", "colors.py", "_deps.py", "dns.py", "http.py", "mtu.py",
+        "ping.py", "tcp.py", "trace.py", "whois.py",
     ]
     pyfiles = _FALLBACK
     try:
@@ -805,8 +810,8 @@ def _run_update() -> None:
     _CMDS = [
         ("ping!", "ping"), ("tcp!", "tcp"), ("bgp!", "bgp"),
         ("trace!", "trace"), ("http!", "http"), ("info!", "ansinfo"),
-        ("domain!", "whois"), ("dns!", "dns"), ("checkall!", "checkall"),
-        ("bot!", "bot"), ("ff", "cli"),
+        ("domain!", "whois"), ("dns!", "dns"), ("mtu!", "mtu"),
+        ("checkall!", "checkall"), ("bot!", "bot"), ("ff", "cli"),
     ]
     for cmd, mod in _CMDS:
         # On Windows the launcher is "<cmd>.cmd"; on POSIX it's a bare file.
@@ -869,17 +874,19 @@ def _run(choice: int) -> None:
     cmd_name, _, target_label, has_nodes = _ITEMS[choice - 1]
 
     if target_label is None:
-        if choice == 8:
+        if choice in (8, 9):
             print(f"\n  {B}{cmd_name}{N}")
-            from .dns import run
+            mod = "dns" if choice == 8 else "mtu"
+            from importlib import import_module
+            run_fn = import_module(f".{mod}", __package__).run
             try:
-                run()
+                run_fn()
             except SystemExit as e:
                 if str(e):
                     print(e)
             except KeyboardInterrupt:
                 print(f"\n  {Y}aborted{N}")
-        elif choice == 10:
+        elif choice == 11:
             _bot_settings()
         return
 
@@ -939,7 +946,7 @@ def _run(choice: int) -> None:
         elif choice == 7:
             from .whois import run
             run(target)
-        elif choice == 9:
+        elif choice == 10:
             from .checkall import run
             run(target)
     except SystemExit as e:

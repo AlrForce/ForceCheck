@@ -12,6 +12,7 @@ ForceCheck is a lightweight CLI tool for network engineers, sysadmins, and secur
 - **`info!`** — IP and ASN WHOIS lookup via RDAP
 - **`domain!`** — domain availability & WHOIS
 - **`dns!`** — finds the fastest DNS with the best access to the outside, then sets it on your OS
+- **`mtu!`** — finds the optimal MTU via Path MTU Discovery, then sets it on your interface
 - **`checkall!`** — run all checks in parallel and display a unified summary
 - **`ff`** — interactive menu for all tools
 
