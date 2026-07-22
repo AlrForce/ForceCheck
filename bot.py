@@ -5,7 +5,7 @@ Premium UI · inline keyboards · scheduled IP monitoring via check-host.net
 Setup: bot! --token <TOKEN>
        or:  ff → 11 (Bot Settings)
 """
-
+ 
 import asyncio
 import json
 import re
