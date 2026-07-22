@@ -18,7 +18,7 @@ ForceCheck is a lightweight CLI tool for network engineers, sysadmins, and secur
 
 No account. No API key. One install.
 
----
+--- 
 
 ## Install
 
