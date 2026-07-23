@@ -10,7 +10,7 @@ import time
 import random
 import argparse
 
-from .colors import G, R, Y, C, B, DIM, N
+from .colors import G, R, Y, C, B, DIM, N, loader
 from ._deps import ensure_deps
 
 CHECK_HOST = "https://check-host.net"
@@ -127,19 +127,11 @@ def run(host: str, mode: str = "world") -> None:
     print(f"\n{C}TRACEROUTE {host}  —  {label}{N}")
     print(f"{DIM}{len(nodes)} probe nodes  |  {CHECK_HOST}/check-report/{request_id}{N}\n")
 
-    results: dict = {}
-    for _ in range(20):
-        time.sleep(3)
-        try:
-            r2      = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15)
-            results = r2.json()
-        except Exception:
-            continue
-        done = sum(1 for v in results.values() if v is not None)
-        print(f"\r  waiting for results ... {done}/{len(nodes)}", end="", flush=True)
-        if done >= len(nodes):
-            break
-    print("\n")
+    results = loader(
+        lambda: sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json(),
+        len(nodes), label="tracing routes", poll_every=3.0, max_wait=60.0,
+    )
+    print()
 
     def _print_node(node: str, info) -> None:
         country  = info[1] if len(info) > 1 else "?"

@@ -9,7 +9,7 @@ import sys
 import time
 import argparse
 
-from .colors import G, R, Y, C, B, DIM, N
+from .colors import G, R, Y, C, B, DIM, N, loader
 from ._deps import ensure_deps
 
 CHECK_HOST = "https://check-host.net"
@@ -94,21 +94,10 @@ def run(host: str, port: int, max_nodes: int = 220) -> None:
     global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
 
     # ── poll to completion first, so the two sections print grouped ────
-    results: dict = {}
-    for _ in range(20):
-        time.sleep(1.5)
-        try:
-            batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json()
-        except Exception:
-            continue
-        for k, v in batch.items():
-            if v is not None:
-                results[k] = v
-        print(f"\r  {DIM}waiting for results … {len(results)}/{total}{N}",
-              end="", flush=True)
-        if len(results) >= total:
-            break
-    print("\r" + " " * 52 + "\r", end="")
+    results = loader(
+        lambda: sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json(),
+        total, label="probing ports",
+    )
 
     # ── print grouped: IRAN then GLOBAL ────────────────────────────────
     iran_ok = global_ok = 0
