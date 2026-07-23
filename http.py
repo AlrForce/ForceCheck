@@ -121,56 +121,37 @@ def run(host: str, max_nodes: int = 220) -> None:
     iran_nodes   = [(n, info) for n, info in nodes.items() if _is_iran(info)]
     global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
 
-    iran_seen   = set()
-    global_seen = set()
-    iran_hdr    = False
-    global_hdr  = False
-    iran_ok = global_ok = 0
-
-    # ── live results (Iran first, then Global) ─────────────────────────
+    # ── poll to completion first, so the two sections print grouped ────
+    results: dict = {}
     for _ in range(20):
         time.sleep(1.5)
         try:
             batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json()
         except Exception:
             continue
-
-        for node, info in iran_nodes:
-            if node in iran_seen or batch.get(node) is None:
-                continue
-            iran_seen.add(node)
-            if not iran_hdr:
-                _header("IRAN", Y)
-                iran_hdr = True
-            if _row(node, info, batch[node]):
-                iran_ok += 1
-
-        for node, info in global_nodes:
-            if node in global_seen or batch.get(node) is None:
-                continue
-            global_seen.add(node)
-            if not global_hdr:
-                _header("GLOBAL", C)
-                global_hdr = True
-            if _row(node, info, batch[node], full_loc=False):
-                global_ok += 1
-
-        if len(iran_seen) + len(global_seen) >= total:
+        for k, v in batch.items():
+            if v is not None:
+                results[k] = v
+        print(f"\r  {DIM}waiting for results … {len(results)}/{total}{N}",
+              end="", flush=True)
+        if len(results) >= total:
             break
+    print("\r" + " " * 52 + "\r", end="")
 
-    # ── nodes that never answered ──────────────────────────────────────
-    for node, info in iran_nodes:
-        if node not in iran_seen:
-            if not iran_hdr:
-                _header("IRAN", Y)
-                iran_hdr = True
-            _row(node, info, None)
-    for node, info in global_nodes:
-        if node not in global_seen:
-            if not global_hdr:
-                _header("GLOBAL", C)
-                global_hdr = True
-            _row(node, info, None, full_loc=False)
+    # ── print grouped: IRAN then GLOBAL ────────────────────────────────
+    iran_ok = global_ok = 0
+    for title, color, group, full in (
+        ("IRAN", Y, iran_nodes, True), ("GLOBAL", C, global_nodes, False)
+    ):
+        if not group:
+            continue
+        _header(title, color)
+        for node, info in group:
+            if _row(node, info, results.get(node), full_loc=full):
+                if title == "IRAN":
+                    iran_ok += 1
+                else:
+                    global_ok += 1
 
     # ── summary ────────────────────────────────────────────────────────
     iran_total   = len(iran_nodes)
