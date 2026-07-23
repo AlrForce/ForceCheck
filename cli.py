@@ -877,6 +877,58 @@ def _run_update() -> None:
             print(f"  {DIM}Restart ForceCheck to apply:  run  ff{N}\n")
 
 
+# ── input validation ──────────────────────────────────────────────────────
+import re as _re
+
+_HOST_RE   = _re.compile(
+    r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$")
+_ASN_RE_V  = _re.compile(r"^(?:AS)?\d+$", _re.I)
+_CIDR_RE_V = _re.compile(r"^[0-9A-Fa-f:.]+/\d{1,3}$")
+
+
+def _is_ip(s: str) -> bool:
+    import socket
+    for fam in (socket.AF_INET, socket.AF_INET6):
+        try:
+            socket.inet_pton(fam, s)
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def _v_host(s):          # Host or IP
+    return _is_ip(s) or bool(_HOST_RE.match(s))
+
+def _v_ip_host_asn(s):   # info!
+    return _is_ip(s) or bool(_ASN_RE_V.match(s) or _CIDR_RE_V.match(s) or _HOST_RE.match(s))
+
+def _v_ip_prefix_asn(s): # bgp!
+    return _is_ip(s) or bool(_ASN_RE_V.match(s) or _CIDR_RE_V.match(s))
+
+def _v_url_host(s):      # http!
+    h = _re.sub(r"^https?://", "", s, flags=_re.I).split("/")[0].split(":")[0]
+    return _is_ip(h) or bool(_HOST_RE.match(h))
+
+def _v_domain(s):        # domain!
+    h = _re.sub(r"^https?://", "", s, flags=_re.I).split("/")[0]
+    if h.startswith("www."):
+        h = h[4:]
+    return bool(_HOST_RE.match(h))
+
+
+_VALIDATORS = {
+    "info!":     (_v_ip_host_asn,   "an IP, hostname, or ASN  (e.g. 8.8.8.8 · google.com · AS15169)"),
+    "ping!":     (_v_host,          "an IP or hostname  (e.g. 1.2.3.4 · google.com)"),
+    "tcp!":      (_v_host,          "an IP or hostname  (e.g. 1.2.3.4 · example.com)"),
+    "http!":     (_v_url_host,      "a URL or host  (e.g. example.com · https://example.com)"),
+    "trace!":    (_v_host,          "an IP or hostname  (e.g. 1.2.3.4 · google.com)"),
+    "bgp!":      (_v_ip_prefix_asn, "an IP, prefix, or ASN  (e.g. 1.2.3.4 · 8.8.8.0/24 · AS15169)"),
+    "domain!":   (_v_domain,        "a domain name  (e.g. example.com · mysite.io)"),
+    "checkall!": (_v_host,          "an IP or hostname  (e.g. 1.2.3.4 · google.com)"),
+}
+
+
 # commands that take no target — dispatched by name (module.run())
 _NO_TARGET = {"dns!": "dns", "mtu!": "mtu", "speed!": "speed"}
 
@@ -907,6 +959,12 @@ def _run(choice: int) -> None:
     target = _ask_host(target_label) if cmd_name in ("ping!", "tcp!", "http!") \
         else _ask(target_label)
     if not target:
+        return
+
+    validator, hint = _VALIDATORS.get(cmd_name, (None, ""))
+    if validator and not validator(target):
+        print(f"\n  {R}Invalid format:{N}  {DIM}{target}{N}")
+        print(f"  {DIM}Expected {hint}{N}\n")
         return
     print()
 
