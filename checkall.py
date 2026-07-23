@@ -13,12 +13,33 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .colors import G, R, Y, C, B, DIM, N
 from ._deps import ensure_deps
 from .ansinfo import _resolve_to_ip, _entity_name
+from .http import _http_code
 
 CHECK_HOST = "https://check-host.net"
 RDAP_IP    = "https://rdap.org/ip/{}"
 
 
 # ── توابع جمع‌آوری داده ────────────────────────────────────────────────────
+
+def _chost_start(sess, endpoint: str, params: dict):
+    """Start a check-host job. Returns (data, err): err is 'limit_exceeded',
+    another error string, or None on success."""
+    import random
+    for _ in range(4):
+        try:
+            r = sess.get(f"{CHECK_HOST}/{endpoint}", params=params, timeout=15)
+            r.raise_for_status()
+            data = r.json()
+        except Exception:
+            return None, "error"
+        if data.get("error") == "limit_exceeded":
+            time.sleep(1.5 + random.random() * 2.0)
+            continue
+        if data.get("error"):
+            return None, data["error"]
+        return data, None
+    return None, "limit_exceeded"
+
 
 def _poll(sess, request_id: str, node_count: int,
           interval: int = 2, max_tries: int = 15) -> dict:
@@ -31,9 +52,11 @@ def _poll(sess, request_id: str, node_count: int,
             results = r.json()
         except Exception:
             continue
+        if not isinstance(results, dict):
+            continue
         if sum(1 for v in results.values() if v is not None) >= node_count:
             break
-    return results
+    return results if isinstance(results, dict) else {}
 
 
 def _check_whois(ip: str) -> dict:
@@ -62,11 +85,11 @@ def _check_whois(ip: str) -> dict:
             break
 
     return {
-        "handle":  d.get("handle", "—"),
-        "name":    d.get("name", "—"),
+        "handle":  d.get("handle") or "—",
+        "name":    d.get("name") or "—",
         "cidr":    cidr_str,
-        "org":     org,
-        "country": d.get("country", "—"),
+        "org":     org or "—",
+        "country": d.get("country") or "—",
     }
 
 
@@ -74,12 +97,12 @@ def _check_ping(host: str, max_nodes: int = 10) -> dict:
     import requests
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
-    try:
-        r = sess.get(f"{CHECK_HOST}/check-ping",
-                     params={"host": host, "max_nodes": max_nodes}, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-    except Exception:
+
+    data, err = _chost_start(sess, "check-ping",
+                             {"host": host, "max_nodes": max_nodes})
+    if err == "limit_exceeded":
+        return {"rate_limited": True}
+    if not data:
         return {}
 
     nodes = data.get("nodes", {})
@@ -113,12 +136,12 @@ def _check_http(host: str, max_nodes: int = 10) -> dict:
     url = host if host.startswith(("http://", "https://")) else f"http://{host}"
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
-    try:
-        r = sess.get(f"{CHECK_HOST}/check-http",
-                     params={"host": url, "max_nodes": max_nodes}, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-    except Exception:
+
+    data, err = _chost_start(sess, "check-http",
+                             {"host": url, "max_nodes": max_nodes})
+    if err == "limit_exceeded":
+        return {"rate_limited": True}
+    if not data:
         return {}
 
     nodes = data.get("nodes", {})
@@ -134,28 +157,14 @@ def _check_http(host: str, max_nodes: int = 10) -> dict:
         res = results.get(node)
         if not res or not res[0] or res[0][0] != 1:
             continue
-        entry  = res[0]
-        t_sec  = entry[1] if len(entry) > 1 else None
-        code_raw = entry[2] if len(entry) > 2 else None
-        code = 0
-        if isinstance(code_raw, int):
-            code = code_raw
-        elif code_raw is not None:
-            for part in str(code_raw).split():
-                try:
-                    n = int(part)
-                    if 100 <= n <= 599:
-                        code = n
-                        break
-                except ValueError:
-                    continue
-        ok += 1
-        codes[code] = codes.get(code, 0) + 1
+        entry = res[0]
+        ok   += 1
+        code  = _http_code(entry)
+        if code:
+            codes[code] = codes.get(code, 0) + 1
+        t_sec = entry[1] if len(entry) > 1 and isinstance(entry[1], (int, float)) else None
         if t_sec is not None:
-            try:
-                times_ms.append(float(t_sec) * 1000)
-            except (TypeError, ValueError):
-                pass
+            times_ms.append(float(t_sec) * 1000)
 
     return {
         "ok":       ok,
@@ -169,12 +178,12 @@ def _check_trace(host: str, max_nodes: int = 3) -> dict:
     import requests
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
-    try:
-        r = sess.get(f"{CHECK_HOST}/check-traceroute",
-                     params={"host": host, "max_nodes": max_nodes}, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-    except Exception:
+
+    data, err = _chost_start(sess, "check-traceroute",
+                             {"host": host, "max_nodes": max_nodes})
+    if err == "limit_exceeded":
+        return {"rate_limited": True}
+    if not data:
         return {}
 
     nodes = data.get("nodes", {})
@@ -214,6 +223,13 @@ def _row(label: str, value: str) -> None:
 
 def _pct_color(pct: int) -> str:
     return G if pct >= 80 else (Y if pct >= 40 else R)
+
+
+def _no_data(res: dict) -> None:
+    if res and res.get("rate_limited"):
+        print(f"    {Y}⏳  rate limited — check-host is throttling, try again{N}")
+    else:
+        print(f"    {Y}no data{N}")
 
 
 def run(host: str) -> None:
@@ -261,7 +277,9 @@ def run(host: str) -> None:
     # ── PING ───────────────────────────────────────────
     p = results.get("ping", {})
     _section(f"PING  —  {p.get('total', 0)} nodes")
-    if p:
+    if p.get("rate_limited") or not p:
+        _no_data(p)
+    else:
         pct = p["ok"] * 100 // p["total"] if p["total"] else 0
         _row("Reachability", f"{_pct_color(pct)}{p['ok']}/{p['total']}  ({pct}%){N}")
         if p["rtt_avg"] is not None:
@@ -269,13 +287,13 @@ def run(host: str) -> None:
                  f"min {p['rtt_min']:.1f} ms  "
                  f"·  avg {p['rtt_avg']:.1f} ms  "
                  f"·  max {p['rtt_max']:.1f} ms")
-    else:
-        print(f"    {Y}no data{N}")
 
     # ── HTTP ───────────────────────────────────────────
     h = results.get("http", {})
     _section(f"HTTP  —  {h.get('total', 0)} nodes")
-    if h:
+    if h.get("rate_limited") or not h:
+        _no_data(h)
+    else:
         pct = h["ok"] * 100 // h["total"] if h["total"] else 0
         _row("Reachability", f"{_pct_color(pct)}{h['ok']}/{h['total']}  ({pct}%){N}")
         if h["codes"]:
@@ -283,19 +301,17 @@ def run(host: str) -> None:
             _row("Status codes", codes_str)
         if h["time_avg"] is not None:
             _row("Avg response", f"{h['time_avg']:.0f} ms")
-    else:
-        print(f"    {Y}no data{N}")
 
     # ── TRACEROUTE ─────────────────────────────────────
     t = results.get("trace", {})
     _section(f"TRACEROUTE  —  {t.get('total', 0)} nodes")
-    if t:
+    if t.get("rate_limited") or not t:
+        _no_data(t)
+    else:
         pct = t["completed"] * 100 // t["total"] if t["total"] else 0
         _row("Completed", f"{_pct_color(pct)}{t['completed']}/{t['total']}{N}")
         if t["avg_hops"] is not None:
             _row("Avg hops", f"{t['avg_hops']:.0f}")
-    else:
-        print(f"    {Y}no data{N}")
 
     print()
 

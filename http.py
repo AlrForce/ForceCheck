@@ -27,6 +27,24 @@ def _is_iran(info: list) -> bool:
     return code == "ir" or "iran" in name
 
 
+def _http_code(entry) -> int:
+    """Find the HTTP status code anywhere in a check-host result entry.
+
+    Format is [1, time, "Reason", "301", "ip"] — the code is a numeric
+    string (entry[3]), not entry[2] which is the reason phrase.
+    """
+    for x in entry:
+        if isinstance(x, bool):
+            continue
+        if isinstance(x, int) and 100 <= x <= 599:
+            return x
+        if isinstance(x, str):
+            for tok in x.replace("/", " ").split():
+                if tok.isdigit() and 100 <= int(tok) <= 599:
+                    return int(tok)
+    return 0
+
+
 def _code_color(code: int) -> str:
     if 200 <= code < 300:
         return G
@@ -55,23 +73,9 @@ def _row(node: str, info: list, res, full_loc: bool = True) -> bool:
         time.sleep(0.04)
         return False
 
-    # check-host.net HTTP format: [1, time_seconds, http_code, ...]
-    time_sec = entry[1] if len(entry) > 1 else None
-    code_raw = entry[2] if len(entry) > 2 else None
-
-    code = 0
-    if code_raw is not None:
-        if isinstance(code_raw, int):
-            code = code_raw
-        else:
-            for part in str(code_raw).split():
-                try:
-                    n = int(part)
-                    if 100 <= n <= 599:
-                        code = n
-                        break
-                except ValueError:
-                    continue
+    # check-host.net HTTP format: [1, time_seconds, "Reason", "code", "ip"]
+    time_sec = entry[1] if len(entry) > 1 and isinstance(entry[1], (int, float)) else None
+    code     = _http_code(entry)
 
     try:
         time_str = f"{float(time_sec):.2f}s"
@@ -82,10 +86,11 @@ def _row(node: str, info: list, res, full_loc: bool = True) -> bool:
         sc        = _code_color(code)
         code_disp = str(code)
     else:
-        sc        = G
-        code_disp = "200"
+        sc        = DIM
+        code_disp = "—"
 
-    print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {sc}{code_disp:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
+    status = f"{G}OK{N}" if (not code or 200 <= code < 400) else f"{Y}{code}{N}"
+    print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {sc}{code_disp:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {status}", flush=True)
     time.sleep(0.04)
     return (200 <= code < 400) if code else True
 
