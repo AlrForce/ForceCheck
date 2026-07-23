@@ -109,19 +109,31 @@ def _poll_results(sess, rid: str, n: int) -> dict:
 
 
 def _check_ip(ip: str, max_nodes: int = 220) -> dict:
-    import requests
+    import requests, random
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
-    try:
-        r = sess.get(
-            f"{CHECK_HOST}/check-ping",
-            params={"host": ip, "max_nodes": max_nodes},
-            timeout=15,
-        )
-        r.raise_for_status()
-        data = r.json()
-    except Exception:
-        return {}
+
+    # check-host throttles bursts (Check All fires many in parallel) → returns
+    # {"error": "limit_exceeded"}. Retry a few times with jittered backoff.
+    data = None
+    for attempt in range(4):
+        try:
+            r = sess.get(
+                f"{CHECK_HOST}/check-ping",
+                params={"host": ip, "max_nodes": max_nodes},
+                timeout=15,
+            )
+            r.raise_for_status()
+            data = r.json()
+        except Exception:
+            return {}
+        if data.get("error") == "limit_exceeded":
+            time.sleep(1.5 + random.random() * 2.5)
+            continue
+        break
+
+    if not data or data.get("error"):
+        return {"rate_limited": True} if data and data.get("error") == "limit_exceeded" else {}
     nodes = data.get("nodes", {})
     if not nodes:
         return {}
@@ -328,6 +340,12 @@ def _menu_text(user: dict) -> str:
 
 
 def _ip_card(ip: str, res: dict) -> str:
+    if res and res.get("rate_limited"):
+        return (
+            f"  {E_SAT}  <b><code>{ip}</code></b>\n\n"
+            f"  {E_WARN}  <b>Rate limited</b>\n"
+            f"  <i>check-host.net is throttling — try again shortly</i>"
+        )
     if not res:
         return (
             f"  {E_SAT}  <b><code>{ip}</code></b>\n\n"
@@ -360,6 +378,8 @@ def _ip_card(ip: str, res: dict) -> str:
 def _ip_line(ip: str, res: dict) -> str:
     """Compact one-line summary — used when many targets are shown, so the
     message stays under Telegram's 4096-char limit (plain emoji to save space)."""
+    if res and res.get("rate_limited"):
+        return f"  ⏳  <code>{ip}</code>  <i>rate limited — try again</i>"
     if not res:
         return f"  ❌  <code>{ip}</code>  <i>unreachable</i>"
     ir, gl = res["iran_ok"], res["global_ok"]
@@ -931,6 +951,17 @@ def _build_app(token: str):
             except Exception:
                 await query.edit_message_text(
                     _stream_text(ip, {}, {}, 0, 0, done=True),
+                    parse_mode="HTML", reply_markup=kb_done,
+                )
+                return
+
+            if ping_data.get("error") == "limit_exceeded":
+                await query.edit_message_text(
+                    f"{E_SEARCH}  <b>Ping Check  ·  <code>{ip}</code></b>\n"
+                    f"{_HR}\n\n"
+                    f"  {E_WARN}  <b>Rate limited</b>\n"
+                    f"  <i>check-host.net is throttling requests.\n"
+                    f"  Wait ~30 seconds and try again.</i>",
                     parse_mode="HTML", reply_markup=kb_done,
                 )
                 return

@@ -107,7 +107,12 @@ def run(host: str, max_nodes: int = 220) -> None:
     except requests.exceptions.ConnectionError:
         sys.exit(f"{R}Cannot connect to check-host.net{N}")
 
-    data       = r.json()
+    data = r.json()
+    if data.get("error"):
+        if data["error"] == "limit_exceeded":
+            sys.exit(f"{Y}⏳  Rate limited by check-host.net — wait ~30s and try again.{N}")
+        sys.exit(f"{R}check-host.net error:{N} {data['error']}")
+
     request_id = data.get("request_id", "")
     nodes      = data.get("nodes", {})
     total      = len(nodes)
