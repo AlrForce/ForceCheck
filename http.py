@@ -15,10 +15,16 @@ from ._deps import ensure_deps
 CHECK_HOST = "https://check-host.net"
 
 _COL_NODE = 36
-_COL_LOC  = 20
+_COL_LOC  = 26
 _COL_CODE = 6
 _COL_TIME = 10
 _W        = _COL_NODE + _COL_LOC + _COL_CODE + _COL_TIME + 12
+
+
+def _is_iran(info: list) -> bool:
+    code = (info[0] if len(info) > 0 else "").lower()
+    name = (info[1] if len(info) > 1 else "").lower()
+    return code == "ir" or "iran" in name
 
 
 def _code_color(code: int) -> str:
@@ -29,22 +35,23 @@ def _code_color(code: int) -> str:
     return R
 
 
-def _header() -> None:
+def _header(title: str, color: str) -> None:
+    print(f"\n  {color}▌ {title}{N}")
     print(f"  {B}{'NODE':<{_COL_NODE}} {'LOCATION':<{_COL_LOC}} {'CODE':>{_COL_CODE}} {'TIME (s)':>{_COL_TIME}}  STATUS{N}")
     print("  " + "─" * _W)
 
 
-def _row(node: str, info: list, res) -> bool:
-    # فقط اسم کشور
-    country = info[1] if len(info) > 1 else "?"
+def _row(node: str, info: list, res, full_loc: bool = True) -> bool:
+    country  = info[1] if len(info) > 1 else "?"
+    city     = info[2] if len(info) > 2 else "?"
+    location = f"{city}, {country}" if full_loc else country
 
-    # فرمت check-host.net: [1, "200 OK", time_sec, "ip"] یا [0, "error msg"]
     entry = res[0] if res else None
 
     if not entry or entry[0] != 1:
         err_raw = entry[1] if entry and len(entry) > 1 else "timeout"
         err     = str(err_raw)[:18] if isinstance(err_raw, str) else "timeout"
-        print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {R}{'400':>{_COL_CODE}}{N} {'—':>{_COL_TIME}}  {R}{err}{N}", flush=True)
+        print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {R}{'—':>{_COL_CODE}}{N} {'—':>{_COL_TIME}}  {R}{err}{N}", flush=True)
         time.sleep(0.04)
         return False
 
@@ -52,7 +59,6 @@ def _row(node: str, info: list, res) -> bool:
     time_sec = entry[1] if len(entry) > 1 else None
     code_raw = entry[2] if len(entry) > 2 else None
 
-    # استخراج کد HTTP: int 200 / "200" / "200 OK" / "HTTP/1.1 200 OK" → 200
     code = 0
     if code_raw is not None:
         if isinstance(code_raw, int):
@@ -79,9 +85,8 @@ def _row(node: str, info: list, res) -> bool:
         sc        = G
         code_disp = "200"
 
-    print(f"  {node:<{_COL_NODE}} {country:<{_COL_LOC}} {sc}{code_disp:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
+    print(f"  {node:<{_COL_NODE}} {location:<{_COL_LOC}} {sc}{code_disp:>{_COL_CODE}}{N} {time_str:>{_COL_TIME}}  {G}OK{N}", flush=True)
     time.sleep(0.04)
-    # اگر کد HTTP نداشتیم ولی entry[0]==1 بود → موفق
     return (200 <= code < 400) if code else True
 
 
@@ -111,34 +116,75 @@ def run(host: str, max_nodes: int = 220) -> None:
         sys.exit(f"{R}No nodes returned — check-host.net may have rejected the host.{N}")
 
     print(f"\n{C}HTTP {host}  —  check-host.net{N}")
-    print(f"{DIM}{total} probe nodes  |  {CHECK_HOST}/check-report/{request_id}{N}\n")
-    _header()
+    print(f"{DIM}{total} probe nodes  |  {CHECK_HOST}/check-report/{request_id}{N}")
 
-    seen     = set()
-    ok_count = 0
+    iran_nodes   = [(n, info) for n, info in nodes.items() if _is_iran(info)]
+    global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
 
+    iran_seen   = set()
+    global_seen = set()
+    iran_hdr    = False
+    global_hdr  = False
+    iran_ok = global_ok = 0
+
+    # ── live results (Iran first, then Global) ─────────────────────────
     for _ in range(20):
         time.sleep(1.5)
-        batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json()
+        try:
+            batch = sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json()
+        except Exception:
+            continue
 
-        for node, info in nodes.items():
-            if node in seen or batch.get(node) is None:
+        for node, info in iran_nodes:
+            if node in iran_seen or batch.get(node) is None:
                 continue
-            seen.add(node)
+            iran_seen.add(node)
+            if not iran_hdr:
+                _header("IRAN", Y)
+                iran_hdr = True
             if _row(node, info, batch[node]):
-                ok_count += 1
+                iran_ok += 1
 
-        if len(seen) >= total:
+        for node, info in global_nodes:
+            if node in global_seen or batch.get(node) is None:
+                continue
+            global_seen.add(node)
+            if not global_hdr:
+                _header("GLOBAL", C)
+                global_hdr = True
+            if _row(node, info, batch[node], full_loc=False):
+                global_ok += 1
+
+        if len(iran_seen) + len(global_seen) >= total:
             break
 
-    # نودهایی که جواب ندادند
-    for node, info in nodes.items():
-        if node not in seen:
+    # ── nodes that never answered ──────────────────────────────────────
+    for node, info in iran_nodes:
+        if node not in iran_seen:
+            if not iran_hdr:
+                _header("IRAN", Y)
+                iran_hdr = True
             _row(node, info, None)
+    for node, info in global_nodes:
+        if node not in global_seen:
+            if not global_hdr:
+                _header("GLOBAL", C)
+                global_hdr = True
+            _row(node, info, None, full_loc=False)
+
+    # ── summary ────────────────────────────────────────────────────────
+    iran_total   = len(iran_nodes)
+    global_total = len(global_nodes)
+    ok_count     = iran_ok + global_ok
+
+    print(f"\n  {'═' * _W}")
+    print(f"\n  {B}RESULT{N}\n")
+    print(f"  {DIM}Iran    {iran_ok}/{iran_total} reached   "
+          f"Global  {global_ok}/{global_total} reached{N}\n")
 
     pct   = ok_count * 100 // total if total else 0
     color = G if pct >= 80 else (Y if pct >= 40 else R)
-    print(f"\n  {color}{ok_count}/{total} nodes reached ({pct}%){N}\n")
+    print(f"  {color}{ok_count}/{total} nodes reached ({pct}%){N}\n")
 
 
 def main() -> None:

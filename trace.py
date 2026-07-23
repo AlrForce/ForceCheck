@@ -141,7 +141,7 @@ def run(host: str, mode: str = "world") -> None:
             break
     print("\n")
 
-    for node, info in nodes.items():
+    def _print_node(node: str, info) -> None:
         country  = info[1] if len(info) > 1 else "?"
         city     = info[2] if len(info) > 2 else "?"
         location = f"{city}, {country}"
@@ -151,12 +151,12 @@ def run(host: str, mode: str = "world") -> None:
         hops_raw = results.get(node)
         if not hops_raw:
             print(f"    {Y}no result{N}\n")
-            continue
+            return
 
         hops = hops_raw[0] if hops_raw else []
         if not hops:
             print(f"    {Y}no hops{N}\n")
-            continue
+            return
 
         for ttl, hop in enumerate(hops, 1):
             if not hop:
@@ -189,6 +189,17 @@ def run(host: str, mode: str = "world") -> None:
             print(f"    {DIM}{ttl:>2}{N}  {addr:<55}  {rtt_str}")
 
         print()
+
+    # ── grouped into IRAN / GLOBAL sections ────────────────────────────
+    iran_nodes   = [(n, info) for n, info in nodes.items() if _is_iran(info)]
+    global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
+
+    for title, color, group in (("IRAN", Y, iran_nodes), ("GLOBAL", C, global_nodes)):
+        if not group:
+            continue
+        print(f"  {color}▌ {title}{N}\n")
+        for node, info in group:
+            _print_node(node, info)
 
 
 def main() -> None:
