@@ -10,6 +10,7 @@ dns.py
 http.py
 mtu.py
 ping.py
+speed.py
 tcp.py
 trace.py
 whois.py 

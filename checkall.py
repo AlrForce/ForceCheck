@@ -4,7 +4,7 @@ checkall — run ping, http, whois, and traceroute in parallel
 Usage:
   checkall! <host>
 """
- 
+
 import sys
 import time
 import argparse

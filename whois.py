@@ -4,7 +4,7 @@ domain — domain availability and WHOIS lookup via RDAP
 Usage:
   domain! <domain>
 """
- 
+
 import sys
 import socket
 import argparse

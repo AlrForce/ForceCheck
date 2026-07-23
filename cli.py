@@ -4,7 +4,7 @@ ff — interactive menu for ForceCheck tools
 Usage:
   ff
 """
- 
+
 import sys
 import subprocess
 
@@ -52,6 +52,7 @@ _ITEMS = [
     ("domain!",   "domain & WHOIS",     "Domain name",          None),
     ("dns!",      "best DNS finder",    None,                   None),
     ("mtu!",      "optimal MTU finder", None,                   None),
+    ("speed!",    "internet speed test",None,                   None),
     ("checkall!", "all checks at once", "Host or IP",           None),
     ("bot!",      "Telegram monitor",   None,                   None),
 ]
@@ -157,7 +158,7 @@ def _show_about() -> None:
 def _run_uninstall() -> None:
     print(f"\n  {R}uninstall ForceCheck{N}\n")
     print(f"  {Y}This will remove ForceCheck and all its commands from your system.{N}")
-    print(f"  {DIM}(ping!  tcp!  bgp!  trace!  http!  info!  domain!  dns!  mtu!  checkall!  ff){N}\n")
+    print(f"  {DIM}(ping!  tcp!  bgp!  trace!  http!  info!  domain!  dns!  mtu!  speed!  checkall!  ff){N}\n")
 
     try:
         confirm = input(f"    {R}Type 'yes' to confirm:{N} ").strip().lower()
@@ -190,7 +191,8 @@ def _run_uninstall() -> None:
         pass
     for scripts in dict.fromkeys(d for d in script_dirs if d):
         for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!",
-                    "domain!", "dns!", "mtu!", "checkall!", "bot!", "ff", "fc", "fcheck"):
+                    "domain!", "dns!", "mtu!", "speed!", "checkall!", "bot!",
+                    "ff", "fc", "fcheck"):
             for suffix in ("", ".cmd", ".exe"):
                 path = _os.path.join(scripts, cmd + suffix)
                 if _os.path.exists(path):
@@ -663,13 +665,17 @@ def _show_help() -> None:
          "Optimal-MTU finder via Path MTU Discovery — detects\n"
          "  tunnel overhead and can set it on your interface.",
          ["mtu!", "mtu! 8.8.8.8", "mtu! --set"]),
+        ("speed!",
+         "Internet speed test (download / upload / latency)\n"
+         "  via Cloudflare — no account needed.",
+         ["speed!", "speed! --time 8"]),
         ("checkall!",
          "Run  ping + http + info  in parallel on one target.",
          ["checkall! 1.2.3.4"]),
         ("bot!",
          "Telegram bot — monitors IPs on a schedule.",
          ["bot! --token <TOKEN>",
-          "ff → 11  (configure token & allowed IDs)"]),
+          "ff → 12  (configure token & allowed IDs)"]),
     ]
 
     for cmd, desc, examples in cmds:
@@ -712,7 +718,7 @@ def _show_help() -> None:
     tips = [
         "All checks use  check-host.net  under the hood.",
         "Commands work standalone:  ping! 8.8.8.8",
-        "Telegram bot:  ff → 11 → configure → start",
+        "Telegram bot:  ff → 12 → configure → start",
         "Update anytime:  ff → u",
         "Find your Telegram chat ID via  @userinfobot",
     ]
@@ -781,7 +787,7 @@ def _run_update() -> None:
     _FALLBACK = [
         "__init__.py", "ansinfo.py", "bgp.py", "bot.py", "checkall.py",
         "cli.py", "colors.py", "_deps.py", "dns.py", "http.py", "mtu.py",
-        "ping.py", "tcp.py", "trace.py", "whois.py",
+        "ping.py", "speed.py", "tcp.py", "trace.py", "whois.py",
     ]
     pyfiles = _FALLBACK
     try:
@@ -811,7 +817,8 @@ def _run_update() -> None:
         ("ping!", "ping"), ("tcp!", "tcp"), ("bgp!", "bgp"),
         ("trace!", "trace"), ("http!", "http"), ("info!", "ansinfo"),
         ("domain!", "whois"), ("dns!", "dns"), ("mtu!", "mtu"),
-        ("checkall!", "checkall"), ("bot!", "bot"), ("ff", "cli"),
+        ("speed!", "speed"), ("checkall!", "checkall"), ("bot!", "bot"),
+        ("ff", "cli"),
     ]
     for cmd, mod in _CMDS:
         # On Windows the launcher is "<cmd>.cmd"; on POSIX it's a bare file.
@@ -870,15 +877,19 @@ def _run_update() -> None:
             print(f"  {DIM}Restart ForceCheck to apply:  run  ff{N}\n")
 
 
-def _run(choice: int) -> None:
-    cmd_name, _, target_label, has_nodes = _ITEMS[choice - 1]
+# commands that take no target — dispatched by name (module.run())
+_NO_TARGET = {"dns!": "dns", "mtu!": "mtu", "speed!": "speed"}
 
+
+def _run(choice: int) -> None:
+    cmd_name, _, target_label, _hn = _ITEMS[choice - 1]
+
+    # ── no-target actions ──────────────────────────────────────────────
     if target_label is None:
-        if choice in (8, 9):
+        if cmd_name in _NO_TARGET:
             print(f"\n  {B}{cmd_name}{N}")
-            mod = "dns" if choice == 8 else "mtu"
             from importlib import import_module
-            run_fn = import_module(f".{mod}", __package__).run
+            run_fn = import_module(f".{_NO_TARGET[cmd_name]}", __package__).run
             try:
                 run_fn()
             except SystemExit as e:
@@ -886,31 +897,28 @@ def _run(choice: int) -> None:
                     print(e)
             except KeyboardInterrupt:
                 print(f"\n  {Y}aborted{N}")
-        elif choice == 11:
+        elif cmd_name == "bot!":
             _bot_settings()
         return
 
+    # ── target commands ────────────────────────────────────────────────
     print(f"\n  {B}{cmd_name}{N}")
 
-    target = _ask_host(target_label) if choice in (2, 3, 4) else _ask(target_label)
+    target = _ask_host(target_label) if cmd_name in ("ping!", "tcp!", "http!") \
+        else _ask(target_label)
     if not target:
         return
-
-    nodes = _ask_nodes() if has_nodes else None
     print()
 
     try:
-        if choice == 1:
+        if cmd_name == "info!":
             from .ansinfo import _ASN_RE, run_ip, run_asn
             m = _ASN_RE.match(target)
-            if m:
-                run_asn(int(m.group(1)))
-            else:
-                run_ip(target)
-        elif choice == 2:
+            run_asn(int(m.group(1))) if m else run_ip(target)
+        elif cmd_name == "ping!":
             from .ping import run
             run(target, 220)
-        elif choice == 3:
+        elif cmd_name == "tcp!":
             print(f"  {DIM}Valid range: 1 – 65535{N}")
             print(f"  {DIM}Common: 22 SSH · 80 HTTP · 443 HTTPS · 3306 MySQL · 5432 PG · 6379 Redis{N}")
             try:
@@ -930,23 +938,23 @@ def _run(choice: int) -> None:
             print()
             from .tcp import run
             run(target, port)
-        elif choice == 4:
+        elif cmd_name == "http!":
             from .http import run
             run(target, 220)
-        elif choice == 5:
+        elif cmd_name == "trace!":
             from .trace import run, ask_mode
             mode = ask_mode()
             if not mode:
                 return
             print()
             run(target, mode)
-        elif choice == 6:
+        elif cmd_name == "bgp!":
             from .bgp import run
             run(target)
-        elif choice == 7:
+        elif cmd_name == "domain!":
             from .whois import run
             run(target)
-        elif choice == 10:
+        elif cmd_name == "checkall!":
             from .checkall import run
             run(target)
     except SystemExit as e:

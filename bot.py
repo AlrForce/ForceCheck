@@ -3,9 +3,9 @@ ForceCheck Telegram Bot
 Premium UI · inline keyboards · scheduled IP monitoring via check-host.net
 
 Setup: bot! --token <TOKEN>
-       or:  ff → 11 (Bot Settings)
+       or:  ff → 12 (Bot Settings)
 """
- 
+
 import asyncio
 import json
 import re
@@ -1219,7 +1219,7 @@ def main() -> None:
         epilog=(
             "Setup:\n"
             "  bot! --token <TOKEN>\n"
-            "  or:  ff  → 11 (Bot Settings)\n\n"
+            "  or:  ff  → 12 (Bot Settings)\n\n"
             "Get a token from @BotFather on Telegram."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -8,7 +8,7 @@ Usage:
 import sys
 import time
 import argparse
- 
+
 from .colors import G, R, Y, C, B, DIM, N
 from ._deps import ensure_deps
 

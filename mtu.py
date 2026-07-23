@@ -10,7 +10,7 @@ Usage:
   mtu! <host>          discover to a specific host
   mtu! --set           discover, then set it on your main interface
 """
- 
+
 import re
 import sys
 import argparse

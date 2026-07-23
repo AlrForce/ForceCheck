@@ -4,7 +4,7 @@ tcp — distributed TCP port check via check-host.net
 Usage:
   tcp! <host> <port> [-n NODES]
 """
- 
+
 import sys
 import time
 import argparse

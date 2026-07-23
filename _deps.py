@@ -4,7 +4,7 @@ import subprocess
 _DEPS = [
     ("requests", "requests>=2.28"),
 ]
-   
+
 
 def _importable(module: str) -> bool:
     try:
