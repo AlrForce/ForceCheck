@@ -1435,6 +1435,7 @@ def _build_app(token: str):
                     reply_markup=_kb_cancel(),
                 )
                 return
+            ctx.user_data.pop("awaiting", None)
             await query.edit_message_text(
                 f"{E_SAT}  <b>Pinging {len(tuns)} tunnel"
                 f"{'s' if len(tuns) > 1 else ''}…</b>\n{_HR}\n\n"
@@ -1467,35 +1468,42 @@ def _build_app(token: str):
                 f"server, so a reply confirms the tunnel is up.</i>\n\n"
                 f"  <code>10.0.0.1</code>  ·  <code>192.168.1.1</code>",
                 parse_mode="HTML",
-                reply_markup=_kb_cancel(),
+                reply_markup=Kbd([[Btn("✖  Cancel", callback_data="tunnel")]]),
             )
 
-        elif data == "tunnel_remove":
-            _, user = _get_user(uid)
+        elif data in ("tunnel_remove", "tunnel_del") or data.startswith("tunnel_del:"):
+            ctx.user_data.pop("awaiting", None)
+            store, user = _get_user(uid)
+            removed = None
+            if data.startswith("tunnel_del:"):
+                ip_del = data[len("tunnel_del:"):]
+                if ip_del in user.get("tunnels", []):
+                    user["tunnels"].remove(ip_del)
+                    _save(store)
+                    removed = ip_del
+                    if not user["tunnels"]:            # no tunnels left → stop job
+                        _schedule_tunnel(ctx.job_queue, uid, 0)
+
             tuns = user.get("tunnels", [])
+            head = (f"{E_OK}  <b>Removed</b>  ·  <code>{removed}</code>\n{_HR}\n\n"
+                    if removed else f"{E_TRASH}  <b>Remove Tunnel</b>\n{_HR}\n\n")
+
             if not tuns:
                 await query.edit_message_text(
-                    f"{E_WARN}  <b>No tunnels to remove</b>",
-                    parse_mode="HTML", reply_markup=_kb_back(),
+                    head + "<i>No tunnels left.</i>",
+                    parse_mode="HTML",
+                    reply_markup=Kbd([
+                        [Btn("➕  Add Tunnel", callback_data="tunnel_add"),
+                         Btn("◀️  Menu",       callback_data="menu")],
+                    ]),
                 )
                 return
             rows = [[Btn(f"🗑  {ip}", callback_data=f"tunnel_del:{ip}")] for ip in tuns]
             rows.append([Btn("◀️  Back", callback_data="tunnel")])
             await query.edit_message_text(
-                f"{E_TRASH}  <b>Remove Tunnel</b>\n{_HR}\n\n"
-                f"<i>Tap one to remove it:</i>",
+                head + "<i>Tap a tunnel to remove it:</i>",
                 parse_mode="HTML", reply_markup=Kbd(rows),
             )
-
-        elif data.startswith("tunnel_del:"):
-            ip_del      = data[len("tunnel_del:"):]
-            store, user = _get_user(uid)
-            if ip_del in user.get("tunnels", []):
-                user["tunnels"].remove(ip_del)
-                _save(store)
-                if not user["tunnels"]:               # no tunnels left → stop job
-                    _schedule_tunnel(ctx.job_queue, uid, 0)
-            await _show_menu(update, ctx, edit=True)
 
         elif data == "tunnel_settings":
             _, user = _get_user(uid)
