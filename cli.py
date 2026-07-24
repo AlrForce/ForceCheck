@@ -61,7 +61,7 @@ _ITEMS = [
 def _menu() -> str:
     lines = [f"\n{'─' * (_W + 2)}"]
     for i, (cmd, desc, _, _n) in enumerate(_ITEMS, 1):
-        lines.append(f"  {B}{i}{N}  {cmd:<12}{DIM}{desc}{N}")
+        lines.append(f"  {B}{i:>2}{N}  {cmd:<12}{DIM}{desc}{N}")
     lines.append(f"  {DIM}{'─' * _W}{N}")
     if _latest_version and _latest_version != __version__:
         _udesc = f"{G}new update available  {DIM}({__version__} → {_latest_version}){N}"
@@ -69,11 +69,16 @@ def _menu() -> str:
         _udesc = f"{DIM}Up to date  (v{__version__}){N}"
     else:
         _udesc = f"{DIM}download latest version from GitHub{N}"
-    lines.append(f"  {G}u{N}  {'update':<12}{_udesc}")
-    lines.append(f"  {C}a{N}  {'about':<12}{DIM}about & support{N}")
-    lines.append(f"  {R}x{N}  {'uninstall':<12}{DIM}remove ForceCheck from this system{N}")
-    lines.append(f"  {B}h{N}  {'help':<12}{DIM}guide & usage reference{N}")
-    lines.append(f"  {DIM}0  exit{N}")
+    lines.append(f"  {G}{'u':>2}{N}  {'update':<12}{_udesc}")
+    lines.append(f"  {C}{'a':>2}{N}  {'about':<12}{DIM}about & support{N}")
+    lines.append(f"  {R}{'x':>2}{N}  {'uninstall':<12}{DIM}remove ForceCheck from this system{N}")
+    lines.append(f"  {B}{'h':>2}{N}  {'help':<12}{DIM}guide & usage reference{N}")
+    lines.append(f"  {DIM}{'0':>2}  exit{N}")
+    lines.append(f"  {DIM}{'─' * _W}{N}")
+    lines.append(
+        f"  {C}Enter a number above{N}{DIM}  —  or run any command directly:{N}"
+    )
+    lines.append(f"  {DIM}ping!  info!  tcp!  trace!  bgp!  domain!  dns!  mtu!  speed!{N}")
     return "\n".join(lines)
 
 
