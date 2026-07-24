@@ -61,7 +61,6 @@ def _get_filtered_nodes(region: str, count: int) -> list:
         )
         r.raise_for_status()
         data = r.json()
-        # some API responses wrap nodes under a "nodes" key
         all_nodes = data.get("nodes", data) if isinstance(data, dict) else {}
     except Exception:
         return []
@@ -187,7 +186,6 @@ def run(host: str, mode: str = "world") -> None:
 
         print()
 
-    # ── grouped into IRAN / GLOBAL sections ────────────────────────────
     iran_nodes   = [(n, info) for n, info in nodes.items() if _is_iran(info)]
     global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
 

@@ -15,24 +15,20 @@ def _enable_windows_ansi() -> bool:
         from ctypes import wintypes
 
         k = ctypes.windll.kernel32
-        # Proper prototypes so handles aren't truncated on 64-bit Python.
         k.GetStdHandle.restype    = wintypes.HANDLE
         k.GetStdHandle.argtypes   = [wintypes.DWORD]
         k.GetConsoleMode.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
         k.SetConsoleMode.argtypes = [wintypes.HANDLE, wintypes.DWORD]
 
-        handle = k.GetStdHandle(wintypes.DWORD(-11 & 0xFFFFFFFF))  # STD_OUTPUT_HANDLE
+        handle = k.GetStdHandle(wintypes.DWORD(-11 & 0xFFFFFFFF))
         mode   = wintypes.DWORD()
         if not k.GetConsoleMode(handle, ctypes.byref(mode)):
             return False
-        # ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
         return bool(k.SetConsoleMode(handle, mode.value | 0x0004))
     except Exception:
         return False
 
 
-# On Windows, make sure Unicode box-drawing chars never crash on a legacy
-# codepage (cp1252) — happens when output is piped/redirected.
 if os.name == "nt":
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -87,7 +83,7 @@ def loader(fetch, total: int, label: str = "scanning nodes",
         done.set()
 
     if not (_COLOR and sys.stdout.isatty()):
-        _worker()                      # piped / no-color: just poll silently
+        _worker()
         return results
 
     t = threading.Thread(target=_worker, daemon=True)

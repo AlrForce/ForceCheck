@@ -19,11 +19,10 @@ import subprocess
 
 from .colors import G, R, Y, C, B, DIM, N
 
-_IP_OVERHEAD = 28          # 20 (IPv4 header) + 8 (ICMP header)
-_MIN_MTU     = 576         # IPv4 minimum
-_MAX_MTU     = 1500        # standard Ethernet — internet paths never exceed this
+_IP_OVERHEAD = 28
+_MIN_MTU     = 576
+_MAX_MTU     = 1500
 
-# MTU → what it usually means
 _KNOWN = {
     1500: "Standard Ethernet — no tunnel overhead",
     1492: "PPPoE (DSL)",
@@ -40,7 +39,6 @@ _KNOWN = {
 }
 
 
-# ── probing ─────────────────────────────────────────────────────────────────
 
 def _ping_df(host: str, payload: int, timeout: int = 2) -> bool:
     """True if an ICMP echo with DF set and `payload` bytes gets a reply."""
@@ -50,18 +48,17 @@ def _ping_df(host: str, payload: int, timeout: int = 2) -> bool:
                "-w", str(timeout * 1000), host]
     elif system == "Darwin":
         cmd = ["ping", "-D", "-s", str(payload), "-c", "1", "-t", str(timeout), host]
-    else:  # Linux
+    else:
         cmd = ["ping", "-M", "do", "-s", str(payload), "-c", "1",
                "-W", str(timeout), host]
 
-    for _ in range(2):  # one retry to absorb random loss
+    for _ in range(2):
         try:
             p = subprocess.run(cmd, capture_output=True, text=True,
                                timeout=timeout + 3)
         except Exception:
             continue
         out = (p.stdout + p.stderr).lower()
-        # explicit "too big" markers → definitely does not fit
         if ("frag" in out and "need" in out) or "too long" in out \
                 or "message too long" in out:
             return False
@@ -103,7 +100,6 @@ def _discover(host: str) -> int:
     return best + _IP_OVERHEAD if best else 0
 
 
-# ── applying ────────────────────────────────────────────────────────────────
 
 def _default_iface() -> str:
     system = platform.system()
@@ -169,12 +165,10 @@ def _set_cmd(iface: str, mtu: int) -> str:
     return f"sudo ip link set dev {iface or 'eth0'} mtu {mtu}"
 
 
-# ── rendering ───────────────────────────────────────────────────────────────
 
 def _interpret(mtu: int) -> str:
     if mtu in _KNOWN:
         return _KNOWN[mtu]
-    # nearest known within 6 bytes
     near = min(_KNOWN, key=lambda k: abs(k - mtu))
     if abs(near - mtu) <= 6:
         return f"≈ {_KNOWN[near]}"
@@ -184,7 +178,6 @@ def _interpret(mtu: int) -> str:
 def run(host: str = "1.1.1.1", do_set: bool = False) -> None:
     print(f"\n{C}MTU  discovery  —  optimal packet size for your server{N}")
 
-    # pick a reachable target
     target = host
     if not _reachable(target):
         alt = "8.8.8.8" if target != "8.8.8.8" else "1.1.1.1"
@@ -217,13 +210,11 @@ def run(host: str = "1.1.1.1", do_set: bool = False) -> None:
     if mtu < 1500:
         print(f"  {DIM}Overhead     {N}{1500 - mtu} bytes below standard 1500")
 
-    # TCP MSS hint (MTU - 40 for IPv4 TCP/IP headers)
     print(f"  {DIM}TCP MSS      {N}{mtu - 40}  {DIM}(clamp for tunnels){N}")
 
     iface = _default_iface()
     print(f"\n  {DIM}Set it:{N}  {C}{_set_cmd(iface, mtu)}{N}")
 
-    # ── apply ──────────────────────────────────────────────────────────
     if not do_set:
         try:
             ans = input(f"\n  {C}Set MTU {mtu} on "

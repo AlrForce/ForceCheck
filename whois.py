@@ -37,7 +37,6 @@ def _rdap(sess, domain: str) -> tuple:
             return "available", {}
     except Exception:
         pass
-    # fallback  DNS
     try:
         socket.getaddrinfo(domain, None)
         return "registered", {}
@@ -118,7 +117,6 @@ def run(domain: str) -> None:
                     _row("", ns)
             print()
 
-    # ── TLD suggestions ────────────────────────────────────────────────
     check_tlds = [t for t in _TLDS if t != current_tld]
 
     print(f"  {B}── Alternative TLDs {'─' * 28}{N}\n")

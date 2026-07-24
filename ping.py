@@ -92,13 +92,11 @@ def run(host: str, max_nodes: int = 220) -> None:
     iran_nodes   = [(n, info) for n, info in nodes.items() if _is_iran(info)]
     global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
 
-    # ── poll to completion first, so the two sections print grouped ────
     results = loader(
         lambda: sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json(),
         total, label="pinging nodes",
     )
 
-    # ── print grouped: IRAN then GLOBAL ────────────────────────────────
     iran_ok = global_ok = 0
     for title, color, group, full in (
         ("IRAN", Y, iran_nodes, True), ("GLOBAL", C, global_nodes, False)
@@ -113,7 +111,6 @@ def run(host: str, max_nodes: int = 220) -> None:
                 else:
                     global_ok += 1
 
-    # ── نتیجه ─────────────────────────────────────────────────────────
     iran_total   = len(iran_nodes)
     global_total = len(global_nodes)
     iran_reach   = iran_ok >= 2

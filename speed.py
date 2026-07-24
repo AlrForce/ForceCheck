@@ -19,7 +19,6 @@ from ._deps import ensure_deps
 CF = "https://speed.cloudflare.com"
 
 
-# ── helpers ─────────────────────────────────────────────────────────────────
 
 def _trace(sess) -> dict:
     try:
@@ -57,8 +56,6 @@ def _latency(sess, n: int = 12):
 
 
 def _download(sess, max_secs: float = 12.0):
-    # Cloudflare caps a single __down request, so pull moderate chunks
-    # back-to-back until the time window is filled.
     chunk = 1 << 16
     per   = 25_000_000
     start = time.perf_counter()
@@ -71,7 +68,7 @@ def _download(sess, max_secs: float = 12.0):
                          timeout=max_secs + 15)
             if r.status_code != 200:
                 r.close()
-                if per > 2_000_000:      # back off if the size is rejected
+                if per > 2_000_000:
                     per //= 2
                     continue
                 break
@@ -130,7 +127,6 @@ def _fmt(mbps) -> str:
     return f"{G}{mbps:.1f}{N} {DIM}Mbps{N}"
 
 
-# ── interface selection ─────────────────────────────────────────────────────
 
 def _local_ips() -> list:
     import socket
@@ -168,12 +164,10 @@ def _bind_source(sess, ip: str) -> None:
     sess.mount("https://", _SrcAdapter())
 
 
-# ── entry ───────────────────────────────────────────────────────────────────
 
 def run(max_secs: float = 12.0, source_ip: str = None) -> None:
     import requests
 
-    # let the user pick an interface when several exist (avoids testing a tunnel)
     if source_ip is None:
         ips = _local_ips()
         if len(ips) > 1 and sys.stdin.isatty():
@@ -190,7 +184,7 @@ def run(max_secs: float = 12.0, source_ip: str = None) -> None:
                 source_ip = ips[int(raw) - 1]
 
     sess = requests.Session()
-    sess.trust_env = False          # ignore HTTP(S)_PROXY — measure the real link
+    sess.trust_env = False
     sess.headers["User-Agent"] = "ForceCheck-speed"
     if source_ip:
         _bind_source(sess, source_ip)

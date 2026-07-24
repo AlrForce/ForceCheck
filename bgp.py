@@ -25,7 +25,6 @@ def _api(sess, endpoint: str, resource: str, silent: bool = False) -> dict:
     import requests as req
     from urllib.parse import quote
     try:
-        # ساخت مستقیم URL تا slash در prefix ها encode نشه
         url = f"{RIPESTAT}/{endpoint}/data.json?resource={quote(resource, safe='/.:')}"
         r = sess.get(url, timeout=15)
         r.raise_for_status()
@@ -45,7 +44,6 @@ def _api(sess, endpoint: str, resource: str, silent: bool = False) -> dict:
 def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
     """ساخت و نمایش BGP path با استفاده از asn-neighbours"""
 
-    # ساخت زنجیره از origin به سمت بالا (upstream)
     path = [(origin_asn, origin_holder)]
     visited = {origin_asn}
     current = origin_asn
@@ -54,7 +52,6 @@ def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
         d = _api(sess, "asn-neighbours", f"AS{current}", silent=True)
         neighbours = d.get("neighbours", [])
 
-        # فقط upstream (type=left) — مرتب بر اساس power
         upstreams = sorted(
             [n for n in neighbours if n.get("type") == "left"],
             key=lambda x: x.get("power", 0), reverse=True
@@ -75,7 +72,6 @@ def _bgp_map(sess, prefix: str, origin_asn: int, origin_holder: str) -> None:
     if len(path) < 2:
         return
 
-    # معکوس: اینترنت → origin
     path.reverse()
 
     _CYAN   = '\033[96m'
@@ -145,7 +141,6 @@ def _run_ip(sess, target: str) -> None:
         print(f"  {Y}No ASN associated with {target}.{N}\n")
         return
 
-    # geo از ipinfo.io
     geo = {}
     try:
         ip  = target.split("/")[0]
@@ -172,14 +167,12 @@ def _run_ip(sess, target: str) -> None:
         if geo.get("org"):
             _row("Org",     geo["org"])
 
-    # RIR
     rir_d = _api(sess, "rir", prefix)
     rirs  = rir_d.get("rirs", [])
     if rirs:
         print(f"\n  {DIM}RIR Allocation{N}")
         _row("  RIR", rirs[0].get("rir", "—"))
 
-    # AS Path Map
     _bgp_map(sess, prefix, origin_asn, origin_holder)
 
 
@@ -198,7 +191,6 @@ def _run_asn(sess, asn: int) -> None:
         _row("RIR",   block.get("desc", "—"))
         _row("Range", block.get("resource", "—"))
 
-    # تعداد prefix ها
     pfx_d = _api(sess, "announced-prefixes", f"AS{asn}")
     pfxs  = pfx_d.get("prefixes", [])
     v4 = sum(1 for p in pfxs if "." in p.get("prefix", ""))

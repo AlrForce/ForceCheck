@@ -64,7 +64,7 @@ def _local_time(timezone: str) -> tuple:
         import zoneinfo
         tz  = zoneinfo.ZoneInfo(timezone)
         now = datetime.datetime.now(tz)
-        off = now.strftime("%z")                        # e.g. +0330
+        off = now.strftime("%z")
         gmt = f"GMT{off[:3]}:{off[3:]}" if len(off) == 5 else ""
         return (
             f"{timezone}, {gmt}",
@@ -78,7 +78,6 @@ def _fetch_geo(ip: str) -> dict:
     """Try ip-api.com then ipinfo.io; return normalized fields."""
     import requests
 
-    # ip-api.com — free, no auth, widely accessible
     try:
         r = requests.get(f"http://ip-api.com/json/{ip}", timeout=8)
         if r.status_code == 200:
@@ -106,7 +105,6 @@ def _fetch_geo(ip: str) -> dict:
     except Exception:
         pass
 
-    # ipinfo.io — fallback
     try:
         r = requests.get(f"https://ipinfo.io/{ip}/json", timeout=8)
         if r.status_code == 200:
@@ -139,17 +137,14 @@ def run_ip(target: str) -> None:
     if ip != target.split("/")[0]:
         print(f"\n  {DIM}resolved {target} → {ip}{N}")
 
-    # ── hostname از reverse DNS ────────────────────────────────────────
     hostname = ip
     try:
         hostname = socket.gethostbyaddr(ip)[0]
     except Exception:
         pass
 
-    # ── geo: ip-api.com با fallback به ipinfo.io ──────────────────────
     geo = _fetch_geo(ip)
 
-    # ── RDAP برای IP range ────────────────────────────────────────────
     ip_range = "—"
     try:
         rd = requests.get(RDAP_IP.format(ip), timeout=8,

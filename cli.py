@@ -14,9 +14,9 @@ from . import __version__
 
 REPO_URL = "https://github.com/AlrForce/ForceCheck"
 
-_W = 54  # عرض داخلی بنر
+_W = 54
 
-_latest_version: str = ""  # filled by background fetch
+_latest_version: str = ""
 
 
 def _start_version_check() -> None:
@@ -180,7 +180,6 @@ def _run_uninstall() -> None:
     print()
     errors = []
 
-    # حذف پوشه پکیج  (actual install location via __file__)
     pkg_dir = _os.path.dirname(_os.path.abspath(__file__))
     if _os.path.isdir(pkg_dir):
         try:
@@ -188,7 +187,6 @@ def _run_uninstall() -> None:
         except Exception as e:
             errors.append(f"package dir: {e}")
 
-    # حذف دستورها  (bare on POSIX, .cmd/.exe on Windows; system + user dirs)
     script_dirs = [sysconfig.get_path("scripts")]
     try:
         script_dirs.append(sysconfig.get_path("scripts", "nt_user"))
@@ -524,7 +522,7 @@ def _bot_settings() -> None:
                 print(f"\n  {R}No token configured. Select option 1 first.{N}")
                 continue
             try:
-                import telegram  # noqa: F401
+                import telegram
             except ImportError:
                 print(f"\n  {R}Missing:{N} python-telegram-bot")
                 print(f"  Install: {C}pip install 'python-telegram-bot[job-queue]>=20.0'{N}")
@@ -632,7 +630,6 @@ def _show_help() -> None:
 
     print(f"\n  {DIM}Network diagnostics from 100+ nodes worldwide via check-host.net{N}")
 
-    # ── commands ──────────────────────────────────────────────────────────
     print(f"\n{ln}")
     print(f"  {B}COMMANDS{N}")
     print(ln)
@@ -689,7 +686,6 @@ def _show_help() -> None:
         for ex in examples:
             print(f"    {C}${N}  {ex}")
 
-    # ── status legend ──────────────────────────────────────────────────────
     print(f"\n{ln}")
     print(f"  {B}STATUS LEGEND{N}  {DIM}(ping! · checkall!){N}")
     print(ln)
@@ -708,7 +704,6 @@ def _show_help() -> None:
         print(f"\n  {col}{label}{N}")
         print(f"  {DIM}{detail}{N}")
 
-    # ── trace modes ────────────────────────────────────────────────────────
     print(f"\n{ln}")
     print(f"  {B}TRACE MODES{N}")
     print(ln)
@@ -716,7 +711,6 @@ def _show_help() -> None:
     print(f"  {C}🌐  Global Trace{N}  {DIM}4 international nodes outside Iran{N}")
     print(f"  {B}🗺   World Trace{N}   {DIM}8 nodes from worldwide — mixed regions{N}")
 
-    # ── tips ───────────────────────────────────────────────────────────────
     print(f"\n{ln}")
     print(f"  {B}TIPS{N}")
     print(ln)
@@ -730,7 +724,6 @@ def _show_help() -> None:
     for tip in tips:
         print(f"\n  {DIM}·{N}  {tip}")
 
-    # ── links ──────────────────────────────────────────────────────────────
     print(f"\n{ln}")
     print(f"  {DIM}GitHub   :{N}  github.com/AlrForce")
     print(f"  {DIM}Telegram :{N}  @ThisChannelisX")
@@ -746,11 +739,8 @@ def _run_update() -> None:
     print(f"  {DIM}current version : {__version__}{N}")
 
     raw_base = "https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
-    # cache-buster — raw.githubusercontent CDN caches ~5 min; a unique query
-    # param forces a fresh fetch so update never pulls stale files.
     nc = int(time.time())
 
-    # ── fetch latest version ───────────────────────────────────────────────
     latest = "unknown"
     try:
         import re as _re
@@ -783,12 +773,9 @@ def _run_update() -> None:
 
     print()
 
-    # Write back to wherever this package is actually installed (user or
-    # system site) — more reliable than guessing site-packages.
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
     os.makedirs(pkg_dir, exist_ok=True)
 
-    # ── fetch file manifest from GitHub (always up-to-date list) ──────────
     _FALLBACK = [
         "__init__.py", "ansinfo.py", "bgp.py", "bot.py", "checkall.py",
         "cli.py", "colors.py", "_deps.py", "dns.py", "http.py", "mtu.py",
@@ -802,9 +789,8 @@ def _run_update() -> None:
         if fetched:
             pyfiles = fetched
     except Exception:
-        pass  # fall back to _FALLBACK silently
+        pass
 
-    # ── download all files ─────────────────────────────────────────────────
     failed = []
     for f in pyfiles:
         dest = os.path.join(pkg_dir, f)
@@ -815,7 +801,6 @@ def _run_update() -> None:
             failed.append(f)
             print(f"  {R}✗{N} {f}")
 
-    # ── create any missing script commands ─────────────────────────────────
     scripts    = sysconfig.get_path("scripts")
     is_windows = os.name == "nt"
     _CMDS = [
@@ -826,7 +811,6 @@ def _run_update() -> None:
         ("ff", "cli"),
     ]
     for cmd, mod in _CMDS:
-        # On Windows the launcher is "<cmd>.cmd"; on POSIX it's a bare file.
         path = os.path.join(scripts, cmd + (".cmd" if is_windows else ""))
         if os.path.exists(path):
             continue
@@ -845,7 +829,6 @@ def _run_update() -> None:
         except Exception:
             pass
 
-    # ── restart bot service if it's running ───────────────────────────────────
     import subprocess as _sp
     _svc      = "forcecheck-bot"
     _svc_file = f"/etc/systemd/system/{_svc}.service"
@@ -868,9 +851,6 @@ def _run_update() -> None:
         print(f"\n  {Y}Update completed with {len(failed)} failed file(s).{N}")
     else:
         print(f"\n  {G}Update complete!{N}")
-        # Auto-restart only works when launched as a real script (POSIX).
-        # On Windows the command runs via `python -c ...`, so just ask the
-        # user to reopen with `ff`.
         can_restart = os.name != "nt" and len(sys.argv) > 0 and os.path.exists(sys.argv[0])
         if can_restart:
             try:
@@ -882,10 +862,8 @@ def _run_update() -> None:
             print(f"  {DIM}Restart ForceCheck to apply:  run  ff{N}\n")
 
 
-# ── input validation ──────────────────────────────────────────────────────
 import re as _re
 
-# a proper domain: one or more labels ending in an alphabetic TLD (needs a dot)
 _DOMAIN_RE = _re.compile(
     r"^(?=.{1,253}$)([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$")
 _LABEL_RE  = _re.compile(r"^[A-Za-z0-9-]{1,63}$")
@@ -905,9 +883,6 @@ def _is_ip(s: str) -> bool:
 
 
 def _is_domain(s: str) -> bool:
-    # real internet host: has a dot and an alphabetic TLD (rejects "dfjnvdsrf",
-    # "23424234234", "1.2.3"). No DNS lookup — filtered/poisoned domains that
-    # don't resolve locally must still be checkable.
     return bool(_DOMAIN_RE.match(s))
 
 def _is_asn(s: str) -> bool:
@@ -915,20 +890,20 @@ def _is_asn(s: str) -> bool:
         return False
     return 0 < int(_re.sub(r"^AS", "", s, flags=_re.I)) <= 4294967295
 
-def _v_host(s):          # Host or IP
+def _v_host(s):
     return _is_ip(s) or _is_domain(s)
 
-def _v_ip_host_asn(s):   # info!
+def _v_ip_host_asn(s):
     return _is_ip(s) or _is_asn(s) or bool(_CIDR_RE_V.match(s)) or _is_domain(s)
 
-def _v_ip_prefix_asn(s): # bgp!
+def _v_ip_prefix_asn(s):
     return _is_ip(s) or _is_asn(s) or bool(_CIDR_RE_V.match(s))
 
-def _v_url_host(s):      # http!
+def _v_url_host(s):
     h = _re.sub(r"^https?://", "", s, flags=_re.I).split("/")[0].split(":")[0]
     return _is_ip(h) or _is_domain(h)
 
-def _v_domain(s):        # domain! — lenient: a bare label is ok (it appends .com)
+def _v_domain(s):
     h = _re.sub(r"^https?://", "", s, flags=_re.I).split("/")[0]
     if h.startswith("www."):
         h = h[4:]
@@ -947,14 +922,12 @@ _VALIDATORS = {
 }
 
 
-# commands that take no target — dispatched by name (module.run())
 _NO_TARGET = {"dns!": "dns", "mtu!": "mtu", "speed!": "speed"}
 
 
 def _run(choice: int) -> None:
     cmd_name, _, target_label, _hn = _ITEMS[choice - 1]
 
-    # ── no-target actions ──────────────────────────────────────────────
     if target_label is None:
         if cmd_name in _NO_TARGET:
             print(f"\n  {B}{cmd_name}{N}")
@@ -971,7 +944,6 @@ def _run(choice: int) -> None:
             _bot_settings()
         return
 
-    # ── target commands ────────────────────────────────────────────────
     print(f"\n  {B}{cmd_name}{N}")
 
     target = _ask_host(target_label) if cmd_name in ("ping!", "tcp!", "http!") \

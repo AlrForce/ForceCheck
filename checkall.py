@@ -18,7 +18,6 @@ from .bgp import _api as _ripe
 CHECK_HOST = "https://check-host.net"
 
 
-# ── check-host helpers ─────────────────────────────────────────────────────
 
 def _chost_start(sess, endpoint: str, params: dict):
     """Start a check-host job. Returns (data, err): err is 'limit_exceeded',
@@ -56,7 +55,6 @@ def _poll(sess, request_id: str, node_count: int,
     return results if isinstance(results, dict) else {}
 
 
-# ── data collectors ────────────────────────────────────────────────────────
 
 def _check_info(ip: str) -> dict:
     return _fetch_geo(ip) or {}
@@ -148,7 +146,6 @@ def _check_bgp(ip: str) -> dict:
     }
 
 
-# ── render ──────────────────────────────────────────────────────────────────
 
 def _section(title: str) -> None:
     print(f"\n  {B}{title}{N}")
@@ -198,7 +195,6 @@ def run(host: str, port: int = 22) -> None:
             print(f"\r  {DIM}✓ {done_names:<36}{N} ({completed}/4)", end="", flush=True)
     print(f"\r{' ' * 60}\r", end="")
 
-    # ── INFO ───────────────────────────────────────────
     i = results.get("info", {})
     _section("INFO")
     if i:
@@ -211,7 +207,6 @@ def run(host: str, port: int = 22) -> None:
     else:
         _no_data(i)
 
-    # ── PING ───────────────────────────────────────────
     p = results.get("ping", {})
     _section(f"PING  —  {p.get('total', 0)} nodes")
     if p.get("rate_limited") or not p:
@@ -225,7 +220,6 @@ def run(host: str, port: int = 22) -> None:
                  f"·  avg {p['rtt_avg']:.1f} ms  "
                  f"·  max {p['rtt_max']:.1f} ms")
 
-    # ── TCP ────────────────────────────────────────────
     t = results.get("tcp", {})
     _section(f"TCP  —  port {t.get('port', port)}")
     if t.get("rate_limited") or not t.get("total"):
@@ -238,7 +232,6 @@ def run(host: str, port: int = 22) -> None:
         if t.get("rtt_avg") is not None:
             _row("Avg RTT", f"{t['rtt_avg']:.1f} ms")
 
-    # ── BGP ────────────────────────────────────────────
     b = results.get("bgp", {})
     _section("BGP")
     if b:

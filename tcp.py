@@ -41,8 +41,6 @@ def _row(node: str, info: list, result, full_loc: bool = True) -> bool:
     rtt_str = "—"
     status  = f"{R}timeout{N}"
 
-    # API returns: [{"address": "IP", "time": 0.045}]  (open)
-    #          or: [{"error": "Connection timed out"}]  (closed)
     if result and isinstance(result, list):
         probe = result[0] if isinstance(result[0], dict) else {}
         if "time" in probe:
@@ -98,13 +96,11 @@ def run(host: str, port: int, max_nodes: int = 220) -> None:
     iran_nodes   = [(n, info) for n, info in nodes.items() if _is_iran(info)]
     global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
 
-    # ── poll to completion first, so the two sections print grouped ────
     results = loader(
         lambda: sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json(),
         total, label="probing ports",
     )
 
-    # ── print grouped: IRAN then GLOBAL ────────────────────────────────
     iran_ok = global_ok = 0
     for title, color, group, full in (
         ("IRAN", Y, iran_nodes, True), ("GLOBAL", C, global_nodes, False)

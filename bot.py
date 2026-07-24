@@ -26,7 +26,6 @@ _DOMAIN_RE  = re.compile(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+
 def _is_valid_target(t: str) -> bool:
     return bool(_IP_RE.match(t) or _DOMAIN_RE.match(t))
 
-# ── premium animated emoji (message text only) ────────────────────────────────
 def _em(eid: str, fb: str) -> str:
     return f'<tg-emoji emoji-id="{eid}">{fb}</tg-emoji>'
 
@@ -48,18 +47,15 @@ E_PLAY   = _em("5039753786638205957", "▶️")
 E_BACK   = _em("5248966320845768373", "◀️")
 E_BELL   = _em("5458603043203327669", "🔔")
 
-# ── state keys ────────────────────────────────────────────────────────────────
 _S_IP        = "ip"
 _S_INTERVAL  = "interval"
 _S_DOMAIN    = "domain"
 _S_TUNNEL    = "tunnel_ip"
 _S_TUNNEL_INT = "tunnel_int"
 
-# ── visual separators ─────────────────────────────────────────────────────────
 _HR  = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
 _DIV = "<code>· · · · · · · · · · · · · · ·</code>"
 
-# ── storage ───────────────────────────────────────────────────────────────────
 
 def _load() -> dict:
     if STORE_PATH.exists():
@@ -87,7 +83,6 @@ def _is_allowed(user_id: int) -> bool:
     return not allowed or user_id in allowed
 
 
-# ── check-host.net ────────────────────────────────────────────────────────────
 
 def _is_iran(info: list) -> bool:
     code = (info[0] if len(info) > 0 else "").lower()
@@ -115,8 +110,6 @@ def _check_ip(ip: str, max_nodes: int = 220) -> dict:
     sess = requests.Session()
     sess.headers["Accept"] = "application/json"
 
-    # check-host throttles bursts (Check All fires many in parallel) → returns
-    # {"error": "limit_exceeded"}. Retry a few times with jittered backoff.
     data = None
     for attempt in range(4):
         try:
@@ -255,7 +248,6 @@ def _domain_text(result: dict) -> str:
     )
 
 
-# ── tunnel check (local ping — for private endpoints check-host can't reach) ────
 
 def _is_private_ip(ip: str) -> bool:
     if not _IP_RE.match(ip):
@@ -267,7 +259,7 @@ def _is_private_ip(ip: str) -> bool:
         return True
     if parts[0] == "172" and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
         return True
-    if parts[0] == "100" and parts[1].isdigit() and 64 <= int(parts[1]) <= 127:  # CGNAT
+    if parts[0] == "100" and parts[1].isdigit() and 64 <= int(parts[1]) <= 127:
         return True
     return False
 
@@ -311,7 +303,6 @@ def _tunnel_text(statuses: list) -> str:
 
 
 
-# ── message composers ─────────────────────────────────────────────────────────
 
 def _stream_text(
     ip: str,
@@ -455,7 +446,6 @@ def _results_text(
     icon   = E_CLOCK if is_scheduled else E_SEARCH
     title  = "Scheduled Check" if is_scheduled else "Check Results"
     n      = len(ips)
-    # Big cards for a few targets; compact lines for many (Telegram 4096 limit).
     if n > 6:
         cards = [_ip_line(ip, r) for ip, r in zip(ips, res_list)]
         sep   = "\n"
@@ -615,7 +605,6 @@ def _about_text() -> str:
     )
 
 
-# ── bot application ───────────────────────────────────────────────────────────
 
 def _build_app(token: str):
     from telegram import (
@@ -630,7 +619,6 @@ def _build_app(token: str):
 
     app = Application.builder().token(token).build()
 
-    # ── keyboards ─────────────────────────────────
 
     def _kb_main(user: dict) -> Kbd:
         active = user.get("active", True)
@@ -728,7 +716,6 @@ def _build_app(token: str):
         rows.append([Btn("◀️  Cancel", callback_data="menu")])
         return Kbd(rows)
 
-    # ── scheduling ────────────────────────────────
 
     async def _job_check(ctx: ContextTypes.DEFAULT_TYPE) -> None:
         uid   = ctx.job.data["uid"]
@@ -742,9 +729,6 @@ def _build_app(token: str):
         tasks    = [loop.run_in_executor(None, _check_ip, ip) for ip in ips]
         res_list = await asyncio.gather(*tasks)
 
-        # notify_mode == "up": alert only when a target is "Iran Access Only"
-        # (reachable from Iran but blocked globally). Stay silent if every
-        # target is globally healthy or fully unreachable.
         if user.get("notify_mode", "all") == "up":
             iran_only = any(
                 r and r.get("iran_ok") and not r.get("global_ok")
@@ -794,8 +778,6 @@ def _build_app(token: str):
         user["tunnel_last"] = current
         _save(store)
 
-        # "down" policy → only message when a tunnel's up/down state changes
-        # (drop or recovery); "always" → report every check.
         if user.get("tunnel_alert", "down") != "always":
             if current == last:
                 return
@@ -822,7 +804,6 @@ def _build_app(token: str):
                 data={"uid": uid},
             )
 
-    # ── helpers ───────────────────────────────────
 
     async def _show_menu(
         update: Update,
@@ -842,7 +823,6 @@ def _build_app(token: str):
         elif update.callback_query:
             await update.callback_query.message.reply_html(text, reply_markup=kb)
 
-    # ── /start ────────────────────────────────────
 
     async def cmd_start(
         update: Update, ctx: ContextTypes.DEFAULT_TYPE
@@ -860,7 +840,6 @@ def _build_app(token: str):
         ctx.user_data.clear()
         await _show_menu(update, ctx)
 
-    # ── free-text handler ─────────────────────────
 
     async def handle_text(
         update: Update, ctx: ContextTypes.DEFAULT_TYPE
@@ -871,7 +850,6 @@ def _build_app(token: str):
         text  = update.message.text.strip()
         state = ctx.user_data.get("awaiting")
 
-        # waiting for IP ───────────────────────────
         if state == _S_IP:
             ctx.user_data.pop("awaiting", None)
 
@@ -936,7 +914,6 @@ def _build_app(token: str):
                 ]),
             )
 
-        # waiting for interval ─────────────────────
         elif state == _S_INTERVAL:
             ctx.user_data.pop("awaiting", None)
 
@@ -984,7 +961,6 @@ def _build_app(token: str):
                 reply_markup=_kb_back(),
             )
 
-        # waiting for domain ──────────────────────
         elif state == _S_DOMAIN:
             ctx.user_data.pop("awaiting", None)
             domain = text.strip()
@@ -1003,7 +979,6 @@ def _build_app(token: str):
                 ]),
             )
 
-        # waiting for tunnel IP ────────────────────
         elif state == _S_TUNNEL:
             ctx.user_data.pop("awaiting", None)
             tip = text.strip()
@@ -1051,7 +1026,6 @@ def _build_app(token: str):
                 ]),
             )
 
-        # waiting for tunnel interval ──────────────
         elif state == _S_TUNNEL_INT:
             ctx.user_data.pop("awaiting", None)
             try:
@@ -1089,11 +1063,9 @@ def _build_app(token: str):
                 ]),
             )
 
-        # no state → show menu ─────────────────────
         else:
             await _show_menu(update, ctx)
 
-    # ── callback handler ──────────────────────────
 
     async def handle_cb(
         update: Update, ctx: ContextTypes.DEFAULT_TYPE
@@ -1110,7 +1082,6 @@ def _build_app(token: str):
             ctx.user_data.pop("awaiting", None)
             await _show_menu(update, ctx, edit=True)
 
-        # ── help ──────────────────────────────────
         elif data == "help":
             await query.edit_message_text(
                 _help_text(),
@@ -1118,7 +1089,6 @@ def _build_app(token: str):
                 reply_markup=_kb_back(),
             )
 
-        # ── about ─────────────────────────────────
         elif data == "about":
             await query.edit_message_text(
                 _about_text(),
@@ -1126,7 +1096,6 @@ def _build_app(token: str):
                 reply_markup=_kb_back(),
             )
 
-        # ── check — show IP selection screen ──────
         elif data == "check":
             _, user = _get_user(uid)
             ips = user.get("ips", [])
@@ -1152,7 +1121,6 @@ def _build_app(token: str):
                 reply_markup=_kb_check_select(ips),
             )
 
-        # ── single IP — streaming ping ─────────────
         elif data.startswith("check_one:"):
             import requests as _req
             ip   = data[len("check_one:"):]
@@ -1170,7 +1138,6 @@ def _build_app(token: str):
                 parse_mode="HTML",
             )
 
-            # ── start request ──────────────────────
             sess = _req.Session()
             sess.headers["Accept"] = "application/json"
             try:
@@ -1214,7 +1181,7 @@ def _build_app(token: str):
             total_global = len(global_nodes)
             total        = len(nodes)
             seen         = set()
-            iran_res     = {}   # nid → entry, insertion-ordered
+            iran_res     = {}
             global_res   = {}
 
             await query.edit_message_text(
@@ -1233,7 +1200,6 @@ def _build_app(token: str):
                     "rtt": rtt, "ok": ok,
                 }
 
-            # ── streaming poll loop ─────────────────
             for _ in range(18):
                 await asyncio.sleep(2)
                 try:
@@ -1269,7 +1235,6 @@ def _build_app(token: str):
                 if is_done:
                     break
 
-            # ── timeout: mark remaining as ✗ ───────
             if len(seen) < total:
                 for nid, info in {**iran_nodes, **global_nodes}.items():
                     if nid not in seen:
@@ -1289,7 +1254,6 @@ def _build_app(token: str):
                 except Exception:
                     pass
 
-        # ── check all — summary overview ───────────
         elif data == "check_all":
             _, user = _get_user(uid)
             ips = user.get("ips", [])
@@ -1315,7 +1279,6 @@ def _build_app(token: str):
                     parse_mode="HTML", reply_markup=kb_res,
                 )
             except Exception:
-                # Extremely long output — fall back to a plain summary.
                 ok = sum(1 for r in res_list if r and r.get("iran_ok") and r.get("global_ok"))
                 await query.edit_message_text(
                     f"{E_SEARCH}  <b>Check complete</b>  ·  <b>{n}</b> targets\n"
@@ -1325,7 +1288,6 @@ def _build_app(token: str):
                     parse_mode="HTML", reply_markup=kb_res,
                 )
 
-        # ── list ──────────────────────────────────
         elif data == "list":
             _, user = _get_user(uid)
             await query.edit_message_text(
@@ -1338,7 +1300,6 @@ def _build_app(token: str):
                 ]),
             )
 
-        # ── add ───────────────────────────────────
         elif data == "add":
             _, user = _get_user(uid)
             n_used  = len(user.get("ips", []))
@@ -1356,7 +1317,6 @@ def _build_app(token: str):
                 reply_markup=_kb_cancel(),
             )
 
-        # ── remove ────────────────────────────────
         elif data == "remove":
             _, user = _get_user(uid)
             ips = user.get("ips", [])
@@ -1399,7 +1359,6 @@ def _build_app(token: str):
             else:
                 await _show_menu(update, ctx, edit=True)
 
-        # ── domain check ─────────────────────────
         elif data == "domain":
             ctx.user_data["awaiting"] = _S_DOMAIN
             await query.edit_message_text(
@@ -1415,7 +1374,6 @@ def _build_app(token: str):
                 reply_markup=_kb_cancel(),
             )
 
-        # ── tunnel check (local ping of private endpoints) ──
         elif data == "tunnel":
             _, user = _get_user(uid)
             tuns = user.get("tunnels", [])
@@ -1481,7 +1439,7 @@ def _build_app(token: str):
                     user["tunnels"].remove(ip_del)
                     _save(store)
                     removed = ip_del
-                    if not user["tunnels"]:            # no tunnels left → stop job
+                    if not user["tunnels"]:
                         _schedule_tunnel(ctx.job_queue, uid, 0)
 
             tuns = user.get("tunnels", [])
@@ -1519,23 +1477,20 @@ def _build_app(token: str):
             text, kb = _tunnel_settings_view(user)
             await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
 
-        # ── interval ──────────────────────────────
         elif data == "interval":
             _, user = _get_user(uid)
             ctx.user_data["awaiting"] = _S_INTERVAL
             text, kb = _interval_view(user)
             await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
 
-        # ── toggle alert mode (from interval screen) ──
         elif data == "notify_toggle":
             store, user = _get_user(uid)
             user["notify_mode"] = "all" if user.get("notify_mode", "all") == "up" else "up"
             _save(store)
-            ctx.user_data["awaiting"] = _S_INTERVAL  # keep interval input active
+            ctx.user_data["awaiting"] = _S_INTERVAL
             text, kb = _interval_view(user)
             await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
 
-        # ── pause / resume ────────────────────────
         elif data in ("pause", "resume"):
             store, user = _get_user(uid)
             active = (data == "resume")
@@ -1548,7 +1503,6 @@ def _build_app(token: str):
                     j.schedule_removal()
             await _show_menu(update, ctx, edit=True)
 
-    # ── post_init ─────────────────────────────────
 
     async def _post_init(application) -> None:
         store = _load()
@@ -1574,7 +1528,6 @@ def _build_app(token: str):
     return app
 
 
-# ── public API ────────────────────────────────────────────────────────────────
 
 def run(token: str) -> None:
     asyncio.set_event_loop(asyncio.new_event_loop())
@@ -1605,7 +1558,7 @@ def main() -> None:
     args = ap.parse_args()
 
     try:
-        import telegram  # noqa: F401
+        import telegram
     except ImportError:
         print(f"\n{R}Missing dependency:{N} python-telegram-bot\n")
         print(f"Install:  {C}pip install 'python-telegram-bot[job-queue]>=20.0'{N}\n")

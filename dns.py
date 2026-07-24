@@ -24,7 +24,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .colors import G, R, Y, C, B, DIM, N
 
-# (label, [primary, secondary])
 _CANDIDATES = [
     ("Shecan",     ["178.22.122.100", "185.51.200.2"]),
     ("Electro",    ["78.157.42.100",  "78.157.42.101"]),
@@ -40,7 +39,6 @@ _CANDIDATES = [
     ("AdGuard",    ["94.140.14.14",   "94.140.15.15"]),
 ]
 
-# Sites that matter for "access to the outside" — often filtered/sanctioned.
 _TEST_DOMAINS = [
     "google.com",
     "github.com",
@@ -52,7 +50,6 @@ _TEST_DOMAINS = [
 _FILTER_IPS = {"10.10.34.34", "10.10.34.35", "10.10.34.36"}
 
 
-# ── minimal DNS over UDP (no dependencies) ─────────────────────────────────
 
 def _build_query(domain: str, qid: int) -> bytes:
     header = struct.pack(">HHHHHH", qid, 0x0100, 1, 0, 0, 0)
@@ -62,7 +59,7 @@ def _build_query(domain: str, qid: int) -> bytes:
             continue
         q += bytes([len(label)]) + label.encode("idna")
     q += b"\x00"
-    q += struct.pack(">HH", 1, 1)  # QTYPE=A, QCLASS=IN
+    q += struct.pack(">HH", 1, 1)
     return header + q
 
 
@@ -113,7 +110,6 @@ def _query(server: str, domain: str, timeout: float = 2.0):
     return ips
 
 
-# ── scoring helpers ────────────────────────────────────────────────────────
 
 def _is_bogon(ip: str) -> bool:
     parts = ip.split(".")
@@ -136,7 +132,6 @@ def _can_reach(ip: str, port: int = 443, timeout: float = 1.5) -> bool:
 def _benchmark(label: str, ips: list) -> dict:
     server = ips[0]
 
-    # latency — best of two lightweight queries
     samples = []
     for _ in range(2):
         start = time.perf_counter()
@@ -148,7 +143,6 @@ def _benchmark(label: str, ips: list) -> dict:
 
     latency = min(samples)
 
-    # access — resolve each test domain and actually connect to it
     access = 0
     for dom in _TEST_DOMAINS:
         answer = _query(server, dom)
@@ -169,7 +163,6 @@ def _benchmark(label: str, ips: list) -> dict:
     }
 
 
-# ── OS integration ─────────────────────────────────────────────────────────
 
 def _set_dns_linux(primary: str, secondary: str):
     path, backup = "/etc/resolv.conf", "/etc/resolv.conf.forcecheck.bak"
@@ -270,7 +263,6 @@ def _manual_hint(primary: str, secondary: str) -> None:
         print(f"    {C}EOF{N}")
 
 
-# ── rendering ───────────────────────────────────────────────────────────────
 
 _COL_NUM  = 3
 _COL_NAME = 12
@@ -283,7 +275,6 @@ _W        = _COL_NUM + _COL_NAME + _COL_SRV + _COL_ACC + _COL_LAT + 10
 def _rank(results: list) -> tuple:
     reachable = [r for r in results if r.get("reachable")]
     dead      = [r for r in results if not r.get("reachable")]
-    # best access first, then lowest latency
     reachable.sort(key=lambda r: (-r["access"], r["latency"]))
     return reachable, dead
 
@@ -326,7 +317,6 @@ def run(mode: str = "interactive") -> None:
           f"({best['server']}{second})  "
           f"{DIM}· {best['access']}/{best['total']} access · {best['latency']:.0f} ms{N}")
 
-    # ── selection ──────────────────────────────────────────────────────
     if mode == "list":
         print()
         return

@@ -73,7 +73,6 @@ def _row(node: str, info: list, res, full_loc: bool = True) -> bool:
         time.sleep(0.04)
         return False
 
-    # check-host.net HTTP format: [1, time_seconds, "Reason", "code", "ip"]
     time_sec = entry[1] if len(entry) > 1 and isinstance(entry[1], (int, float)) else None
     code     = _http_code(entry)
 
@@ -131,13 +130,11 @@ def run(host: str, max_nodes: int = 220) -> None:
     iran_nodes   = [(n, info) for n, info in nodes.items() if _is_iran(info)]
     global_nodes = [(n, info) for n, info in nodes.items() if not _is_iran(info)]
 
-    # ── poll to completion first, so the two sections print grouped ────
     results = loader(
         lambda: sess.get(f"{CHECK_HOST}/check-result/{request_id}", timeout=15).json(),
         total, label="checking servers",
     )
 
-    # ── print grouped: IRAN then GLOBAL ────────────────────────────────
     iran_ok = global_ok = 0
     for title, color, group, full in (
         ("IRAN", Y, iran_nodes, True), ("GLOBAL", C, global_nodes, False)
@@ -152,7 +149,6 @@ def run(host: str, max_nodes: int = 220) -> None:
                 else:
                     global_ok += 1
 
-    # ── summary ────────────────────────────────────────────────────────
     iran_total   = len(iran_nodes)
     global_total = len(global_nodes)
     ok_count     = iran_ok + global_ok

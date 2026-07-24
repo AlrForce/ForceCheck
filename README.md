@@ -6,7 +6,7 @@
 
 **Distributed network diagnostics + a Telegram monitor bot, built for the real internet (and its filters).**
 
-![version](https://img.shields.io/badge/version-2.0-22c55e?style=for-the-badge)
+![version](https://img.shields.io/badge/version-2.1-22c55e?style=for-the-badge)
 ![python](https://img.shields.io/badge/python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![platform](https://img.shields.io/badge/Linux_·_macOS_·_Windows-334155?style=for-the-badge)
 ![license](https://img.shields.io/badge/license-MIT-06b6d4?style=for-the-badge)
