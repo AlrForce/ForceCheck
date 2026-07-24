@@ -880,8 +880,10 @@ def _run_update() -> None:
 # ── input validation ──────────────────────────────────────────────────────
 import re as _re
 
-_HOST_RE   = _re.compile(
-    r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$")
+# a proper domain: one or more labels ending in an alphabetic TLD (needs a dot)
+_DOMAIN_RE = _re.compile(
+    r"^(?=.{1,253}$)([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$")
+_LABEL_RE  = _re.compile(r"^[A-Za-z0-9-]{1,63}$")
 _ASN_RE_V  = _re.compile(r"^(?:AS)?\d+$", _re.I)
 _CIDR_RE_V = _re.compile(r"^[0-9A-Fa-f:.]+/\d{1,3}$")
 
@@ -897,10 +899,11 @@ def _is_ip(s: str) -> bool:
     return False
 
 
-def _is_named_host(s: str) -> bool:
-    # a real hostname: valid syntax AND has a letter (so a botched IP like
-    # "23424234234" or "1.2.3" is rejected instead of treated as a host)
-    return bool(_HOST_RE.match(s)) and any(c.isalpha() for c in s)
+def _is_domain(s: str) -> bool:
+    # real internet host: has a dot and an alphabetic TLD (rejects "dfjnvdsrf",
+    # "23424234234", "1.2.3"). No DNS lookup — filtered/poisoned domains that
+    # don't resolve locally must still be checkable.
+    return bool(_DOMAIN_RE.match(s))
 
 def _is_asn(s: str) -> bool:
     if not _ASN_RE_V.match(s):
@@ -908,23 +911,23 @@ def _is_asn(s: str) -> bool:
     return 0 < int(_re.sub(r"^AS", "", s, flags=_re.I)) <= 4294967295
 
 def _v_host(s):          # Host or IP
-    return _is_ip(s) or _is_named_host(s)
+    return _is_ip(s) or _is_domain(s)
 
 def _v_ip_host_asn(s):   # info!
-    return _is_ip(s) or _is_asn(s) or bool(_CIDR_RE_V.match(s)) or _is_named_host(s)
+    return _is_ip(s) or _is_asn(s) or bool(_CIDR_RE_V.match(s)) or _is_domain(s)
 
 def _v_ip_prefix_asn(s): # bgp!
     return _is_ip(s) or _is_asn(s) or bool(_CIDR_RE_V.match(s))
 
 def _v_url_host(s):      # http!
     h = _re.sub(r"^https?://", "", s, flags=_re.I).split("/")[0].split(":")[0]
-    return _is_ip(h) or _is_named_host(h)
+    return _is_ip(h) or _is_domain(h)
 
-def _v_domain(s):        # domain!
+def _v_domain(s):        # domain! — lenient: a bare label is ok (it appends .com)
     h = _re.sub(r"^https?://", "", s, flags=_re.I).split("/")[0]
     if h.startswith("www."):
         h = h[4:]
-    return _is_named_host(h)
+    return _is_domain(h) or bool(_LABEL_RE.match(h) and any(c.isalpha() for c in h))
 
 
 _VALIDATORS = {
