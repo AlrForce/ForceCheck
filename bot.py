@@ -49,10 +49,11 @@ E_BACK   = _em("5248966320845768373", "◀️")
 E_BELL   = _em("5458603043203327669", "🔔")
 
 # ── state keys ────────────────────────────────────────────────────────────────
-_S_IP       = "ip"
-_S_INTERVAL = "interval"
-_S_DOMAIN   = "domain"
-_S_TUNNEL   = "tunnel_ip"
+_S_IP        = "ip"
+_S_INTERVAL  = "interval"
+_S_DOMAIN    = "domain"
+_S_TUNNEL    = "tunnel_ip"
+_S_TUNNEL_INT = "tunnel_int"
 
 # ── visual separators ─────────────────────────────────────────────────────────
 _HR  = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
@@ -561,8 +562,10 @@ def _help_text() -> str:
         f"{E_SAT}  <b>Tunnel Check</b>\n"
         f"  Is your tunnel up? Tunnels use private IPs\n"
         f"  (10.x · 192.168.x · 172.16–31.x), so they're pinged\n"
-        f"  from THIS server — a reply means the tunnel is\n"
-        f"  connected. Save several and recheck any time.\n\n"
+        f"  from THIS server — a reply means it's connected.\n"
+        f"  <b>Settings</b> (⚙️ inside the button): set an auto-check\n"
+        f"  interval and choose alerts — <i>On down</i> (only when a\n"
+        f"  tunnel changes state) or <i>Always</i>.\n\n"
 
         f"{_HR}\n"
         f"<b>WHAT THE RESULTS MEAN</b>\n"
@@ -675,6 +678,35 @@ def _build_app(token: str):
         ])
         return text, kb
 
+    def _tunnel_settings_view(user: dict):
+        """Text + keyboard for the Tunnel monitoring settings screen."""
+        interval = user.get("tunnel_interval", 0)
+        alert    = user.get("tunnel_alert", "down")
+        iv_str   = f"every  <b>{interval} min</b>" if interval else "<b>off</b>"
+        if alert == "always":
+            al_line = f"  {E_BELL}  <b>Alerts</b>     <b>Always (every check)</b>"
+            al_btn  = "🔔  Alerts:  Always"
+        else:
+            al_line = f"  {E_BELL}  <b>Alerts</b>     <b>Only when it goes down</b>"
+            al_btn  = "🔔  Alerts:  On down"
+        text = (
+            f"{E_SAT}  <b>Tunnel Monitoring</b>\n"
+            f"{_HR}\n\n"
+            f"  {E_CLOCK}  <b>Interval</b>   {iv_str}\n"
+            f"{al_line}\n\n"
+            f"<i>Tunnels are pinged from this server every interval.\n"
+            f"“On down” messages you only when a tunnel’s state\n"
+            f"changes; “Always” sends a report each time.</i>\n\n"
+            f"{_DIV}\n\n"
+            f"<i>Send an interval in minutes  (0 = turn off) —\n"
+            f"or tap below to switch the alert policy:</i>"
+        )
+        kb = Kbd([
+            [Btn(al_btn, callback_data="tunnel_alert_toggle")],
+            [Btn("◀️  Back", callback_data="tunnel")],
+        ])
+        return text, kb
+
     def _kb_check_select(ips: list) -> Kbd:
         rows = [[Btn(f"📡  {ip}", callback_data=f"check_one:{ip}")] for ip in ips]
         rows.append([Btn("🔍  Check All",  callback_data="check_all")])
@@ -742,6 +774,53 @@ def _build_app(token: str):
             name=f"fc_{uid}",
             data={"uid": uid},
         )
+
+    async def _tunnel_job(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        uid   = ctx.job.data["uid"]
+        store = _load()
+        user  = store["users"].get(uid, {})
+        tuns  = user.get("tunnels", [])
+        if not tuns:
+            return
+
+        loop   = asyncio.get_running_loop()
+        pinged = await asyncio.gather(
+            *[loop.run_in_executor(None, _ping_local, ip) for ip in tuns]
+        )
+        statuses = [(ip, up, rtt) for ip, (up, rtt) in zip(tuns, pinged)]
+        current  = {ip: up for ip, (up, _r) in zip(tuns, pinged)}
+
+        last = user.get("tunnel_last", {})
+        user["tunnel_last"] = current
+        _save(store)
+
+        # "down" policy → only message when a tunnel's up/down state changes
+        # (drop or recovery); "always" → report every check.
+        if user.get("tunnel_alert", "down") != "always":
+            if current == last:
+                return
+
+        try:
+            await ctx.bot.send_message(
+                chat_id=int(uid),
+                text=_tunnel_text(statuses),
+                parse_mode="HTML",
+                reply_markup=_kb_back(),
+            )
+        except Exception:
+            pass
+
+    def _schedule_tunnel(jq, uid: str, interval: int) -> None:
+        for j in jq.get_jobs_by_name(f"tun_{uid}"):
+            j.schedule_removal()
+        if interval > 0:
+            jq.run_repeating(
+                _tunnel_job,
+                interval=interval * 60,
+                first=interval * 60,
+                name=f"tun_{uid}",
+                data={"uid": uid},
+            )
 
     # ── helpers ───────────────────────────────────
 
@@ -965,6 +1044,45 @@ def _build_app(token: str):
                 f"{_HR}\n\n"
                 f"  {E_SAT}  <b><code>{tip}</code></b>\n"
                 f"{state_line}{note}",
+                reply_markup=Kbd([
+                    [Btn("🔌  Tunnel Check", callback_data="tunnel"),
+                     Btn("⚙️  Settings",     callback_data="tunnel_settings")],
+                    [Btn("◀️  Menu",         callback_data="menu")],
+                ]),
+            )
+
+        # waiting for tunnel interval ──────────────
+        elif state == _S_TUNNEL_INT:
+            ctx.user_data.pop("awaiting", None)
+            try:
+                mins = int(text)
+            except ValueError:
+                await update.message.reply_html(
+                    f"{E_ERR}  <b>Invalid Input</b>\n"
+                    f"{_HR}\n\n"
+                    f"  <code>{text}</code>\n\n"
+                    f"<i>Send a whole number of minutes  (0 = turn off).</i>",
+                    reply_markup=_kb_cancel(),
+                )
+                return
+            mins = max(0, min(1440, mins))
+
+            store, user = _get_user(uid)
+            user["tunnel_interval"] = mins
+            _save(store)
+            _schedule_tunnel(ctx.job_queue, uid, mins)
+
+            alert = ("Always" if user.get("tunnel_alert", "down") == "always"
+                     else "Only when it goes down")
+            if mins:
+                body = (f"  {E_CLOCK}  Check every   <b>{mins} min</b>\n"
+                        f"  {E_BELL}  Alerts:       <b>{alert}</b>\n\n"
+                        f"<i>Tunnels are pinged from this server on schedule.</i>")
+            else:
+                body = f"  {E_PAUSE}  Scheduled tunnel checks <b>turned off</b>."
+            await update.message.reply_html(
+                f"{E_OK}  <b>Tunnel Monitoring Updated</b>\n"
+                f"{_HR}\n\n{body}",
                 reply_markup=Kbd([
                     [Btn("🔌  Tunnel Check", callback_data="tunnel"),
                      Btn("◀️  Menu",         callback_data="menu")],
@@ -1334,8 +1452,9 @@ def _build_app(token: str):
                 reply_markup=Kbd([
                     [Btn("🔄  Recheck",     callback_data="tunnel"),
                      Btn("➕  Add",         callback_data="tunnel_add")],
-                    [Btn("🗑  Remove",      callback_data="tunnel_remove"),
-                     Btn("◀️  Menu",        callback_data="menu")],
+                    [Btn("⚙️  Settings",    callback_data="tunnel_settings"),
+                     Btn("🗑  Remove",      callback_data="tunnel_remove")],
+                    [Btn("◀️  Menu",        callback_data="menu")],
                 ]),
             )
 
@@ -1374,7 +1493,23 @@ def _build_app(token: str):
             if ip_del in user.get("tunnels", []):
                 user["tunnels"].remove(ip_del)
                 _save(store)
+                if not user["tunnels"]:               # no tunnels left → stop job
+                    _schedule_tunnel(ctx.job_queue, uid, 0)
             await _show_menu(update, ctx, edit=True)
+
+        elif data == "tunnel_settings":
+            _, user = _get_user(uid)
+            ctx.user_data["awaiting"] = _S_TUNNEL_INT
+            text, kb = _tunnel_settings_view(user)
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
+
+        elif data == "tunnel_alert_toggle":
+            store, user = _get_user(uid)
+            user["tunnel_alert"] = "always" if user.get("tunnel_alert", "down") == "down" else "down"
+            _save(store)
+            ctx.user_data["awaiting"] = _S_TUNNEL_INT
+            text, kb = _tunnel_settings_view(user)
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
 
         # ── interval ──────────────────────────────
         elif data == "interval":
@@ -1415,6 +1550,12 @@ def _build_app(token: str):
                     application.job_queue,
                     uid,
                     user.get("interval", 60),
+                )
+            if user.get("tunnel_interval", 0) and user.get("tunnels"):
+                _schedule_tunnel(
+                    application.job_queue,
+                    uid,
+                    user["tunnel_interval"],
                 )
 
     app.post_init = _post_init
