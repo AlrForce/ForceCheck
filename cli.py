@@ -897,24 +897,34 @@ def _is_ip(s: str) -> bool:
     return False
 
 
+def _is_named_host(s: str) -> bool:
+    # a real hostname: valid syntax AND has a letter (so a botched IP like
+    # "23424234234" or "1.2.3" is rejected instead of treated as a host)
+    return bool(_HOST_RE.match(s)) and any(c.isalpha() for c in s)
+
+def _is_asn(s: str) -> bool:
+    if not _ASN_RE_V.match(s):
+        return False
+    return 0 < int(_re.sub(r"^AS", "", s, flags=_re.I)) <= 4294967295
+
 def _v_host(s):          # Host or IP
-    return _is_ip(s) or bool(_HOST_RE.match(s))
+    return _is_ip(s) or _is_named_host(s)
 
 def _v_ip_host_asn(s):   # info!
-    return _is_ip(s) or bool(_ASN_RE_V.match(s) or _CIDR_RE_V.match(s) or _HOST_RE.match(s))
+    return _is_ip(s) or _is_asn(s) or bool(_CIDR_RE_V.match(s)) or _is_named_host(s)
 
 def _v_ip_prefix_asn(s): # bgp!
-    return _is_ip(s) or bool(_ASN_RE_V.match(s) or _CIDR_RE_V.match(s))
+    return _is_ip(s) or _is_asn(s) or bool(_CIDR_RE_V.match(s))
 
 def _v_url_host(s):      # http!
     h = _re.sub(r"^https?://", "", s, flags=_re.I).split("/")[0].split(":")[0]
-    return _is_ip(h) or bool(_HOST_RE.match(h))
+    return _is_ip(h) or _is_named_host(h)
 
 def _v_domain(s):        # domain!
     h = _re.sub(r"^https?://", "", s, flags=_re.I).split("/")[0]
     if h.startswith("www."):
         h = h[4:]
-    return bool(_HOST_RE.match(h))
+    return _is_named_host(h)
 
 
 _VALIDATORS = {
