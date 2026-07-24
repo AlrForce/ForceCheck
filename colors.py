@@ -1,41 +1,6 @@
 import sys
-import os
 
-
-def _enable_windows_ansi() -> bool:
-    """Enable ANSI/VT escape processing on Windows 10+ consoles.
-
-    Returns True if colors can be shown (always True off Windows), False if
-    the console can't handle ANSI (old Windows) so callers fall back to plain.
-    """
-    if os.name != "nt":
-        return True
-    try:
-        import ctypes
-        from ctypes import wintypes
-
-        k = ctypes.windll.kernel32
-        k.GetStdHandle.restype    = wintypes.HANDLE
-        k.GetStdHandle.argtypes   = [wintypes.DWORD]
-        k.GetConsoleMode.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
-        k.SetConsoleMode.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-
-        handle = k.GetStdHandle(wintypes.DWORD(-11 & 0xFFFFFFFF))
-        mode   = wintypes.DWORD()
-        if not k.GetConsoleMode(handle, ctypes.byref(mode)):
-            return False
-        return bool(k.SetConsoleMode(handle, mode.value | 0x0004))
-    except Exception:
-        return False
-
-
-if os.name == "nt":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
-_COLOR = sys.stdout.isatty() and _enable_windows_ansi()
+_COLOR = sys.stdout.isatty()
 
 G   = "\033[92m" if _COLOR else ""
 R   = "\033[91m" if _COLOR else ""

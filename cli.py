@@ -187,22 +187,16 @@ def _run_uninstall() -> None:
         except Exception as e:
             errors.append(f"package dir: {e}")
 
-    script_dirs = [sysconfig.get_path("scripts")]
-    try:
-        script_dirs.append(sysconfig.get_path("scripts", "nt_user"))
-    except Exception:
-        pass
-    for scripts in dict.fromkeys(d for d in script_dirs if d):
-        for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!",
-                    "domain!", "dns!", "mtu!", "speed!", "checkall!", "bot!",
-                    "ff", "fc", "fcheck"):
-            for suffix in ("", ".cmd", ".exe"):
-                path = _os.path.join(scripts, cmd + suffix)
-                if _os.path.exists(path):
-                    try:
-                        _os.remove(path)
-                    except Exception as e:
-                        errors.append(f"{cmd}{suffix}: {e}")
+    scripts = sysconfig.get_path("scripts")
+    for cmd in ("ping!", "tcp!", "bgp!", "trace!", "http!", "info!",
+                "domain!", "dns!", "mtu!", "speed!", "checkall!", "bot!",
+                "ff", "fc", "fcheck"):
+        path = _os.path.join(scripts, cmd)
+        if _os.path.exists(path):
+            try:
+                _os.remove(path)
+            except Exception as e:
+                errors.append(f"{cmd}: {e}")
 
     if errors:
         print(f"  {Y}Uninstall completed with warnings:{N}")
@@ -801,8 +795,7 @@ def _run_update() -> None:
             failed.append(f)
             print(f"  {R}✗{N} {f}")
 
-    scripts    = sysconfig.get_path("scripts")
-    is_windows = os.name == "nt"
+    scripts = sysconfig.get_path("scripts")
     _CMDS = [
         ("ping!", "ping"), ("tcp!", "tcp"), ("bgp!", "bgp"),
         ("trace!", "trace"), ("http!", "http"), ("info!", "ansinfo"),
@@ -811,20 +804,13 @@ def _run_update() -> None:
         ("ff", "cli"),
     ]
     for cmd, mod in _CMDS:
-        path = os.path.join(scripts, cmd + (".cmd" if is_windows else ""))
+        path = os.path.join(scripts, cmd)
         if os.path.exists(path):
             continue
         try:
-            if is_windows:
-                exe = sys.executable or "python"
-                body = (f'@echo off\r\n'
-                        f'"{exe}" -c "from forcecheck.{mod} import main; main()" %*\r\n')
-                with open(path, "w", newline="") as fh:
-                    fh.write(body)
-            else:
-                with open(path, "w") as fh:
-                    fh.write(f"#!/usr/bin/env python3\nfrom forcecheck.{mod} import main\nmain()\n")
-                os.chmod(path, 0o755)
+            with open(path, "w") as fh:
+                fh.write(f"#!/usr/bin/env python3\nfrom forcecheck.{mod} import main\nmain()\n")
+            os.chmod(path, 0o755)
             print(f"  {G}✓{N} created  {cmd}")
         except Exception:
             pass
@@ -851,15 +837,12 @@ def _run_update() -> None:
         print(f"\n  {Y}Update completed with {len(failed)} failed file(s).{N}")
     else:
         print(f"\n  {G}Update complete!{N}")
-        can_restart = os.name != "nt" and len(sys.argv) > 0 and os.path.exists(sys.argv[0])
-        if can_restart:
-            try:
-                input(f"\n  {DIM}Press Enter to restart ForceCheck ...{N}")
-            except (EOFError, KeyboardInterrupt):
-                print()
+        try:
+            input(f"\n  {DIM}Press Enter to restart ForceCheck ...{N}")
+        except (EOFError, KeyboardInterrupt):
+            print()
+        if sys.argv and os.path.exists(sys.argv[0]):
             os.execv(sys.executable, [sys.executable] + sys.argv)
-        else:
-            print(f"  {DIM}Restart ForceCheck to apply:  run  ff{N}\n")
 
 
 import re as _re

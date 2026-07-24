@@ -14,7 +14,6 @@ Usage:
 import re
 import sys
 import argparse
-import platform
 import subprocess
 
 from .colors import G, R, Y, C, B, DIM, N
@@ -42,16 +41,7 @@ _KNOWN = {
 
 def _ping_df(host: str, payload: int, timeout: int = 2) -> bool:
     """True if an ICMP echo with DF set and `payload` bytes gets a reply."""
-    system = platform.system()
-    if system == "Windows":
-        cmd = ["ping", "-f", "-l", str(payload), "-n", "1",
-               "-w", str(timeout * 1000), host]
-    elif system == "Darwin":
-        cmd = ["ping", "-D", "-s", str(payload), "-c", "1", "-t", str(timeout), host]
-    else:
-        cmd = ["ping", "-M", "do", "-s", str(payload), "-c", "1",
-               "-W", str(timeout), host]
-
+    cmd = ["ping", "-M", "do", "-s", str(payload), "-c", "1", "-W", str(timeout), host]
     for _ in range(2):
         try:
             p = subprocess.run(cmd, capture_output=True, text=True,
@@ -62,21 +52,16 @@ def _ping_df(host: str, payload: int, timeout: int = 2) -> bool:
         if ("frag" in out and "need" in out) or "too long" in out \
                 or "message too long" in out:
             return False
-        if p.returncode == 0 and ("ttl=" in out or "bytes from" in out
-                                  or "reply from" in out):
+        if p.returncode == 0 and ("ttl=" in out or "bytes from" in out):
             return True
     return False
 
 
 def _reachable(host: str) -> bool:
     """Plain (fragmentable) ping to confirm the host answers at all."""
-    system = platform.system()
-    if system == "Windows":
-        cmd = ["ping", "-n", "1", "-w", "2000", host]
-    else:
-        cmd = ["ping", "-c", "1", "-W", "2", host]
     try:
-        return subprocess.run(cmd, capture_output=True, timeout=6).returncode == 0
+        return subprocess.run(["ping", "-c", "1", "-W", "2", host],
+                              capture_output=True, timeout=6).returncode == 0
     except Exception:
         return False
 
@@ -102,66 +87,30 @@ def _discover(host: str) -> int:
 
 
 def _default_iface() -> str:
-    system = platform.system()
     try:
-        if system == "Linux":
-            out = subprocess.check_output(
-                ["ip", "-o", "route", "get", "1.1.1.1"], text=True, timeout=5)
-            m = re.search(r"\bdev\s+(\S+)", out)
-            return m.group(1) if m else ""
-        if system == "Darwin":
-            out = subprocess.check_output(["route", "-n", "get", "1.1.1.1"],
-                                          text=True, timeout=5)
-            m = re.search(r"interface:\s+(\S+)", out)
-            return m.group(1) if m else ""
-        if system == "Windows":
-            return subprocess.check_output(
-                ["powershell", "-NoProfile", "-Command",
-                 "Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | "
-                 "Sort-Object InterfaceMetric | "
-                 "Select-Object -First 1 -ExpandProperty Name"],
-                text=True, timeout=15).strip()
+        out = subprocess.check_output(
+            ["ip", "-o", "route", "get", "1.1.1.1"], text=True, timeout=5)
+        m = re.search(r"\bdev\s+(\S+)", out)
+        return m.group(1) if m else ""
     except Exception:
         return ""
-    return ""
 
 
 def _set_mtu(iface: str, mtu: int):
-    system = platform.system()
     try:
-        if system == "Linux":
-            r = subprocess.run(["ip", "link", "set", "dev", iface, "mtu", str(mtu)],
-                               capture_output=True, text=True)
-            if r.returncode == 0:
-                return True, ""
-            err = (r.stderr or "").lower()
-            return False, ("permission" if "operation not permitted" in err
-                           or "not permitted" in err else r.stderr.strip())
-        if system == "Darwin":
-            r = subprocess.run(["ifconfig", iface, "mtu", str(mtu)],
-                               capture_output=True, text=True)
-            return (r.returncode == 0), ("permission" if r.returncode else r.stderr.strip())
-        if system == "Windows":
-            import ctypes
-            if not ctypes.windll.shell32.IsUserAnAdmin():
-                return False, "admin"
-            r = subprocess.run(["netsh", "interface", "ipv4", "set", "subinterface",
-                                iface, f"mtu={mtu}", "store=persistent"],
-                               capture_output=True, text=True)
-            return (r.returncode == 0), (r.stderr or r.stdout or "").strip()
+        r = subprocess.run(["ip", "link", "set", "dev", iface, "mtu", str(mtu)],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            return True, ""
+        err = (r.stderr or "").lower()
+        return False, ("permission" if "not permitted" in err else r.stderr.strip())
     except FileNotFoundError:
-        return False, "tool not found"
+        return False, "the 'ip' command was not found"
     except Exception as e:
         return False, str(e)
-    return False, "unsupported OS"
 
 
 def _set_cmd(iface: str, mtu: int) -> str:
-    system = platform.system()
-    if system == "Windows":
-        return f'netsh interface ipv4 set subinterface "{iface or "Ethernet"}" mtu={mtu} store=persistent'
-    if system == "Darwin":
-        return f"sudo ifconfig {iface or 'en0'} mtu {mtu}"
     return f"sudo ip link set dev {iface or 'eth0'} mtu {mtu}"
 
 
@@ -238,8 +187,6 @@ def run(host: str = "1.1.1.1", do_set: bool = False) -> None:
         print(f"\n  {G}✓  MTU set to {mtu} on {iface}.{N}\n")
     elif info == "permission":
         print(f"\n  {R}Permission denied — run as root:{N}  {_set_cmd(iface, mtu)}\n")
-    elif info == "admin":
-        print(f"\n  {R}Administrator required — reopen the terminal as Administrator.{N}\n")
     else:
         print(f"\n  {R}Could not set MTU:{N} {info}\n")
 

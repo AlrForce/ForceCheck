@@ -6,9 +6,9 @@
 
 **Distributed network diagnostics + a Telegram monitor bot, built for the real internet (and its filters).**
 
-![version](https://img.shields.io/badge/version-2.1-22c55e?style=for-the-badge)
+![version](https://img.shields.io/badge/version-2.2-22c55e?style=for-the-badge)
 ![python](https://img.shields.io/badge/python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![platform](https://img.shields.io/badge/Linux_·_macOS_·_Windows-334155?style=for-the-badge)
+![platform](https://img.shields.io/badge/platform-Linux-334155?style=for-the-badge&logo=linux&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-06b6d4?style=for-the-badge)
 
 [**Install**](#-install) · [**Commands**](#-commands) · [**Telegram Bot**](#-telegram-bot) · [**فارسی**](#-فارسی)
@@ -37,22 +37,12 @@ And it doesn't stop at diagnosis — it **fixes** the things that quietly break 
 
 ## 🚀 Install
 
-**Linux / macOS**
+**Linux** — one line:
 ```bash
 curl -sSL https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.sh | bash
 ```
 
-**Windows — PowerShell**
-```powershell
-irm https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.ps1 | iex
-```
-
-**Windows — Command Prompt (cmd)**
-```bat
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.ps1 | iex"
-```
-
-> Requires **Python 3.8+**. `irm` exists only in PowerShell — in cmd use the command above (it launches PowerShell for you).
+> Requires **Python 3.8+**. Built for Linux — the fix-it tools (`dns!`, `mtu!`) tune `/etc/resolv.conf` and interface MTU via `ip`, and the bot runs as a **systemd** service.
 
 ---
 
@@ -187,17 +177,12 @@ Released under the [MIT License](LICENSE) © 2026 [AlrForce](https://github.com/
 
 ### نصب
 
-**لینوکس و مک:**
+**لینوکس** — فقط یک خط:
 ```bash
 curl -sSL https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.sh | bash
 ```
 
-**ویندوز (PowerShell):**
-```powershell
-irm https://raw.githubusercontent.com/AlrForce/ForceCheck/master/install.ps1 | iex
-```
-
-> به Python نسخه ۳.۸ یا بالاتر نیاز دارد.
+> به Python نسخه ۳.۸ یا بالاتر نیاز دارد. این ابزار برای لینوکس ساخته شده است.
 
 <br>
 

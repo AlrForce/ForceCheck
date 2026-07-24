@@ -267,11 +267,8 @@ def _is_private_ip(ip: str) -> bool:
 def _ping_local(ip: str, timeout: int = 2):
     """Ping an IP from THIS server. Returns (up: bool, rtt_ms: float|None).
     Used for tunnel/private endpoints that check-host's public nodes can't reach."""
-    import subprocess, platform, re as _re
-    if platform.system() == "Windows":
-        cmd = ["ping", "-n", "1", "-w", str(timeout * 1000), ip]
-    else:
-        cmd = ["ping", "-c", "1", "-W", str(timeout), ip]
+    import subprocess, re as _re
+    cmd = ["ping", "-c", "1", "-W", str(timeout), ip]
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 3)
     except Exception:

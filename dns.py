@@ -18,8 +18,6 @@ import socket
 import struct
 import random
 import argparse
-import platform
-import subprocess
 from concurrent.futures import ThreadPoolExecutor
 
 from .colors import G, R, Y, C, B, DIM, N
@@ -185,82 +183,17 @@ def _set_dns_linux(primary: str, secondary: str):
         return False, str(e)
 
 
-def _set_dns_windows(primary: str, secondary: str):
-    try:
-        import ctypes
-        if not ctypes.windll.shell32.IsUserAnAdmin():
-            return False, "admin"
-    except Exception:
-        pass
-    try:
-        alias = subprocess.check_output(
-            ["powershell", "-NoProfile", "-Command",
-             "Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | "
-             "Sort-Object -Property InterfaceMetric | "
-             "Select-Object -First 1 -ExpandProperty Name"],
-            text=True, timeout=15,
-        ).strip()
-        if not alias:
-            return False, "no active network adapter found"
-        subprocess.run(["netsh", "interface", "ipv4", "set", "dnsservers",
-                        f"name={alias}", "static", primary, "primary"],
-                       check=True, capture_output=True, timeout=15)
-        if secondary:
-            subprocess.run(["netsh", "interface", "ipv4", "add", "dnsservers",
-                            f"name={alias}", secondary, "index=2"],
-                           check=True, capture_output=True, timeout=15)
-        return True, f"adapter: {alias}"
-    except subprocess.CalledProcessError as e:
-        return False, (e.stderr or str(e)).strip()
-    except Exception as e:
-        return False, str(e)
-
-
-def _set_dns_macos(primary: str, secondary: str):
-    try:
-        services = subprocess.check_output(
-            ["networksetup", "-listallnetworkservices"], text=True, timeout=10
-        ).splitlines()[1:]
-        svc = next((s for s in services if s.lower() in ("wi-fi", "ethernet")),
-                   services[0] if services else None)
-        if not svc:
-            return False, "no network service found"
-        subprocess.run(["networksetup", "-setdnsservers", svc, primary,
-                        secondary or "empty"], check=True, capture_output=True, timeout=10)
-        return True, f"service: {svc}"
-    except subprocess.CalledProcessError as e:
-        return False, (e.stderr or str(e)).strip()
-    except Exception as e:
-        return False, str(e)
-
-
 def _apply_dns(primary: str, secondary: str):
-    system = platform.system()
-    if system == "Linux":
-        return _set_dns_linux(primary, secondary)
-    if system == "Windows":
-        return _set_dns_windows(primary, secondary)
-    if system == "Darwin":
-        return _set_dns_macos(primary, secondary)
-    return False, f"unsupported OS: {system}"
+    return _set_dns_linux(primary, secondary)
 
 
 def _manual_hint(primary: str, secondary: str) -> None:
-    system = platform.system()
     print(f"\n  {DIM}Set it manually:{N}")
-    if system == "Windows":
-        print(f"    Run PowerShell/cmd as Administrator, then:")
-        print(f"    {C}netsh interface ipv4 set dnsservers \"Ethernet\" static {primary} primary{N}")
-        if secondary:
-            print(f"    {C}netsh interface ipv4 add dnsservers \"Ethernet\" {secondary} index=2{N}")
-    elif system == "Darwin":
-        print(f"    {C}networksetup -setdnsservers Wi-Fi {primary} {secondary}{N}")
-    else:
-        print(f"    {C}sudo tee /etc/resolv.conf <<EOF{N}")
-        print(f"    nameserver {primary}")
-        if secondary:
-            print(f"    nameserver {secondary}")
-        print(f"    {C}EOF{N}")
+    print(f"    {C}sudo tee /etc/resolv.conf <<EOF{N}")
+    print(f"    nameserver {primary}")
+    if secondary:
+        print(f"    nameserver {secondary}")
+    print(f"    {C}EOF{N}")
 
 
 
@@ -352,13 +285,9 @@ def run(mode: str = "interactive") -> None:
         print(f"\n  {G}✓  System DNS set to {chosen['label']}.{N}")
         if info:
             print(f"  {DIM}{info}{N}")
-        if platform.system() == "Linux":
-            print(f"  {DIM}Backup: /etc/resolv.conf.forcecheck.bak{N}")
+        print(f"  {DIM}Backup: /etc/resolv.conf.forcecheck.bak{N}")
     elif info == "permission":
         print(f"\n  {R}Permission denied — run as root:{N}  sudo ff")
-        _manual_hint(primary, secondary)
-    elif info == "admin":
-        print(f"\n  {R}Administrator required — reopen the terminal as Administrator.{N}")
         _manual_hint(primary, secondary)
     else:
         print(f"\n  {R}Could not set DNS:{N} {info}")
