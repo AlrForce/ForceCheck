@@ -52,6 +52,7 @@ E_BELL   = _em("5458603043203327669", "🔔")
 _S_IP       = "ip"
 _S_INTERVAL = "interval"
 _S_DOMAIN   = "domain"
+_S_TUNNEL   = "tunnel_ip"
 
 # ── visual separators ─────────────────────────────────────────────────────────
 _HR  = "<code>━━━━━━━━━━━━━━━━━━━━━━━━━━━</code>"
@@ -251,6 +252,61 @@ def _domain_text(result: dict) -> str:
         f"{_HR}\n\n"
         f"{verdict}{details}"
     )
+
+
+# ── tunnel check (local ping — for private endpoints check-host can't reach) ────
+
+def _is_private_ip(ip: str) -> bool:
+    if not _IP_RE.match(ip):
+        return False
+    parts = ip.split(".")
+    if parts[0] == "10" or parts[0] == "127":
+        return True
+    if parts[0] == "192" and parts[1] == "168":
+        return True
+    if parts[0] == "172" and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
+        return True
+    if parts[0] == "100" and parts[1].isdigit() and 64 <= int(parts[1]) <= 127:  # CGNAT
+        return True
+    return False
+
+
+def _ping_local(ip: str, timeout: int = 2):
+    """Ping an IP from THIS server. Returns (up: bool, rtt_ms: float|None).
+    Used for tunnel/private endpoints that check-host's public nodes can't reach."""
+    import subprocess, platform, re as _re
+    if platform.system() == "Windows":
+        cmd = ["ping", "-n", "1", "-w", str(timeout * 1000), ip]
+    else:
+        cmd = ["ping", "-c", "1", "-W", str(timeout), ip]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 3)
+    except Exception:
+        return False, None
+    if p.returncode != 0:
+        return False, None
+    m = _re.search(r"time[=<]\s*([\d.]+)\s*ms", p.stdout)
+    return True, (float(m.group(1)) if m else None)
+
+
+def _tunnel_text(statuses: list) -> str:
+    """statuses: list of (ip, up, rtt_ms)."""
+    up_n = sum(1 for _, up, _ in statuses if up)
+    parts = [
+        f"{E_SAT}  <b>Tunnel Status</b>\n"
+        f"{_HR}\n\n"
+    ]
+    for ip, up, rtt in statuses:
+        if up:
+            r = f"  <i>{rtt:.0f} ms</i>" if rtt is not None else ""
+            parts.append(f"  {E_OK}  <code>{ip}</code>   <b>connected</b>{r}\n")
+        else:
+            parts.append(f"  {E_ERR}  <code>{ip}</code>   <b>down</b>\n")
+    parts.append(
+        f"\n{_HR}\n"
+        f"{E_SAT}  <i>{up_n}/{len(statuses)} tunnels up  ·  pinged from this server</i>"
+    )
+    return "".join(parts)
 
 
 
@@ -502,6 +558,12 @@ def _help_text() -> str:
         f"  WHOIS & availability for any domain — registrar,\n"
         f"  creation / expiry dates, and nameservers.\n\n"
 
+        f"{E_SAT}  <b>Tunnel Check</b>\n"
+        f"  Is your tunnel up? Tunnels use private IPs\n"
+        f"  (10.x · 192.168.x · 172.16–31.x), so they're pinged\n"
+        f"  from THIS server — a reply means the tunnel is\n"
+        f"  connected. Save several and recheck any time.\n\n"
+
         f"{_HR}\n"
         f"<b>WHAT THE RESULTS MEAN</b>\n"
         f"<i>A target counts as reachable only when enough nodes\n"
@@ -580,7 +642,8 @@ def _build_app(token: str):
             [Btn("🗑  Remove",              callback_data="remove"),
              Btn("⏱  Set Interval",        callback_data="interval")],
             [Btn(toggle[0],                callback_data=toggle[1])],
-            [Btn("🌐  Domain Check",        callback_data="domain")],
+            [Btn("🌐  Domain Check",        callback_data="domain"),
+             Btn("🔌  Tunnel Check",       callback_data="tunnel")],
             [Btn("❓  Guide & Help",        callback_data="help"),
              Btn("ℹ️  About",              callback_data="about")],
         ])
@@ -858,6 +921,53 @@ def _build_app(token: str):
                 reply_markup=Kbd([
                     [Btn("🔄  Check Again", callback_data="domain"),
                      Btn("◀️  Menu",        callback_data="menu")],
+                ]),
+            )
+
+        # waiting for tunnel IP ────────────────────
+        elif state == _S_TUNNEL:
+            ctx.user_data.pop("awaiting", None)
+            tip = text.strip()
+
+            if not _IP_RE.match(tip):
+                await update.message.reply_html(
+                    f"{E_ERR}  <b>Invalid IP</b>\n"
+                    f"{_HR}\n\n"
+                    f"  <code>{tip}</code>\n\n"
+                    f"<i>Send the tunnel's IPv4 address, e.g.</i>\n"
+                    f"  <code>10.0.0.1</code>",
+                    reply_markup=_kb_cancel(),
+                )
+                return
+
+            store, user = _get_user(uid)
+            tuns = user.setdefault("tunnels", [])
+            note = ("" if _is_private_ip(tip)
+                    else f"\n  {E_WARN}  <i>Not a private IP — tunnels usually use "
+                         f"10.x / 192.168.x / 172.16–31.x</i>")
+            if tip in tuns:
+                await update.message.reply_html(
+                    f"{E_WARN}  <b>Already added</b>  ·  <code>{tip}</code>",
+                    reply_markup=Kbd([[Btn("🔌  Tunnel Check", callback_data="tunnel"),
+                                       Btn("◀️  Menu", callback_data="menu")]]),
+                )
+                return
+            tuns.append(tip)
+            _save(store)
+
+            up, rtt = await asyncio.get_event_loop().run_in_executor(
+                None, _ping_local, tip)
+            state_line = (f"  {E_OK}  <b>connected</b>"
+                          f"{f'  <i>{rtt:.0f} ms</i>' if rtt is not None else ''}"
+                          if up else f"  {E_ERR}  <b>down</b>")
+            await update.message.reply_html(
+                f"{E_OK}  <b>Tunnel Added</b>\n"
+                f"{_HR}\n\n"
+                f"  {E_SAT}  <b><code>{tip}</code></b>\n"
+                f"{state_line}{note}",
+                reply_markup=Kbd([
+                    [Btn("🔌  Tunnel Check", callback_data="tunnel"),
+                     Btn("◀️  Menu",         callback_data="menu")],
                 ]),
             )
 
@@ -1186,6 +1296,85 @@ def _build_app(token: str):
                 parse_mode="HTML",
                 reply_markup=_kb_cancel(),
             )
+
+        # ── tunnel check (local ping of private endpoints) ──
+        elif data == "tunnel":
+            _, user = _get_user(uid)
+            tuns = user.get("tunnels", [])
+            if not tuns:
+                ctx.user_data["awaiting"] = _S_TUNNEL
+                await query.edit_message_text(
+                    f"{E_SAT}  <b>Tunnel Check</b>\n"
+                    f"{_HR}\n\n"
+                    f"<i>Monitor whether your tunnels are connected. Tunnels\n"
+                    f"use private IPs, so they're pinged from this server\n"
+                    f"(not from global nodes). A reply means it's up.</i>\n\n"
+                    f"{_DIV}\n\n"
+                    f"<i>Send the tunnel's private IP:</i>\n"
+                    f"  <code>10.0.0.1</code>\n"
+                    f"  <code>192.168.1.1</code>",
+                    parse_mode="HTML",
+                    reply_markup=_kb_cancel(),
+                )
+                return
+            await query.edit_message_text(
+                f"{E_SAT}  <b>Pinging {len(tuns)} tunnel"
+                f"{'s' if len(tuns) > 1 else ''}…</b>\n{_HR}\n\n"
+                f"  {E_CLOCK}  <i>from this server…</i>",
+                parse_mode="HTML",
+            )
+            loop     = asyncio.get_running_loop()
+            pinged   = await asyncio.gather(
+                *[loop.run_in_executor(None, _ping_local, ip) for ip in tuns]
+            )
+            statuses = [(ip, up, rtt) for ip, (up, rtt) in zip(tuns, pinged)]
+            await query.edit_message_text(
+                _tunnel_text(statuses),
+                parse_mode="HTML",
+                reply_markup=Kbd([
+                    [Btn("🔄  Recheck",     callback_data="tunnel"),
+                     Btn("➕  Add",         callback_data="tunnel_add")],
+                    [Btn("🗑  Remove",      callback_data="tunnel_remove"),
+                     Btn("◀️  Menu",        callback_data="menu")],
+                ]),
+            )
+
+        elif data == "tunnel_add":
+            ctx.user_data["awaiting"] = _S_TUNNEL
+            await query.edit_message_text(
+                f"{E_ADD}  <b>Add Tunnel</b>\n"
+                f"{_HR}\n\n"
+                f"<i>Send the tunnel's private IP — it's pinged from this\n"
+                f"server, so a reply confirms the tunnel is up.</i>\n\n"
+                f"  <code>10.0.0.1</code>  ·  <code>192.168.1.1</code>",
+                parse_mode="HTML",
+                reply_markup=_kb_cancel(),
+            )
+
+        elif data == "tunnel_remove":
+            _, user = _get_user(uid)
+            tuns = user.get("tunnels", [])
+            if not tuns:
+                await query.edit_message_text(
+                    f"{E_WARN}  <b>No tunnels to remove</b>",
+                    parse_mode="HTML", reply_markup=_kb_back(),
+                )
+                return
+            rows = [[Btn(f"🗑  {ip}", callback_data=f"tunnel_del:{ip}")] for ip in tuns]
+            rows.append([Btn("◀️  Back", callback_data="tunnel")])
+            await query.edit_message_text(
+                f"{E_TRASH}  <b>Remove Tunnel</b>\n{_HR}\n\n"
+                f"<i>Tap one to remove it:</i>",
+                parse_mode="HTML", reply_markup=Kbd(rows),
+            )
+
+        elif data.startswith("tunnel_del:"):
+            ip_del      = data[len("tunnel_del:"):]
+            store, user = _get_user(uid)
+            if ip_del in user.get("tunnels", []):
+                user["tunnels"].remove(ip_del)
+                _save(store)
+            await _show_menu(update, ctx, edit=True)
 
         # ── interval ──────────────────────────────
         elif data == "interval":

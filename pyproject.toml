@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "forcecheck"
-version = "1.94"
+version = "1.95"
 description = "Distributed network diagnostics from the world's eyes"
 readme = "README.md"
 license = { text = "MIT" }
