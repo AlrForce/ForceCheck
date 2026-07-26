@@ -4,7 +4,7 @@ trace — distributed traceroute via check-host.net
 Usage:
   trace! <host> [--iran | --global | --world]
 """
-
+ 
 import sys
 import time
 import random
