@@ -19,7 +19,7 @@ deps = [
 
 [project.urls]
 Homepage = "https://github.com/AlrForce/ForceCheck"
-
+ 
 [tool.setuptools]
 package-dir = {"forcecheck" = "."}
 packages = ["forcecheck"]
