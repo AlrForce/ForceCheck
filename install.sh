@@ -6,7 +6,7 @@ GITHUB_RAW="https://raw.githubusercontent.com/AlrForce/ForceCheck/master"
 C='\033[96m'; G='\033[92m'; R='\033[91m'; Y='\033[93m'
 B='\033[94m'; DIM='\033[2m'; N='\033[0m'
 W=50
-
+ 
 line()  { printf "${DIM}  %s${N}\n" "$(printf '─%.0s' $(seq 1 $W))"; }
 ok()    { printf "  ${G}✓${N}  %s\n" "$1"; }
 info()  { printf "  ${DIM}→${N}  %s\n" "$1"; }
