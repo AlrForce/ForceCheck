@@ -4,7 +4,7 @@ checkall — run info, ping, tcp, and bgp checks in parallel
 Usage:
   checkall! <host> [port]        (default TCP port: 22)
 """
-
+ 
 import sys
 import time
 import argparse
