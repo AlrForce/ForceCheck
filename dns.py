@@ -10,7 +10,7 @@ Usage:
   dns! --apply-best    benchmark and auto-apply the top resolver
   dns! --list          benchmark only (never change system DNS)
 """
-
+ 
 import os
 import sys
 import time
