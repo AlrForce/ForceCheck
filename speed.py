@@ -8,7 +8,7 @@ Usage:
   speed!               full test (latency + download + upload)
   speed! --time 8      set the download/upload window in seconds
 """
- 
+  
 import sys
 import time
 import argparse
