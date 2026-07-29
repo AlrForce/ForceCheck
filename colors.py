@@ -11,7 +11,7 @@ DIM = "\033[2m"  if _COLOR else ""
 N   = "\033[0m"  if _COLOR else ""
 
 _SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-
+ 
 
 def loader(fetch, total: int, label: str = "scanning nodes",
            poll_every: float = 1.5, max_wait: float = 30.0, width: int = 22) -> dict:
