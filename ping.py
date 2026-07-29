@@ -4,7 +4,7 @@ ping — distributed ping via check-host.net
 Usage:
   ping! <host> [-n NODES]
 """
- 
+  
 import sys
 import time
 import argparse
