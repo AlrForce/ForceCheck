@@ -25,7 +25,7 @@ def loader(fetch, total: int, label: str = "scanning nodes",
     import time, threading
 
     results, lock, done = {}, threading.Lock(), threading.Event()
-
+   
     def _worker():
         start = time.perf_counter()
         while time.perf_counter() - start < max_wait and not done.is_set():
