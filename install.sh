@@ -21,7 +21,7 @@ printf "  ║%s║\n" "$(printf '%*s' $(( (W + 30) / 2 )) 'network diagnostics i
 printf "  ╚%s╝\n" "$(printf '═%.0s' $(seq 1 $W))"
 printf "${N}\n"
 line
-
+   
 # ── چک Python ────────────────────────────────────────────────────────────
 step "Checking Python"
 if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
