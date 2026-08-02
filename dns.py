@@ -21,7 +21,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 
 from .colors import G, R, Y, C, B, DIM, N
-
+    
 _CANDIDATES = [
     ("Shecan",     ["178.22.122.100", "185.51.200.2"]),
     ("Electro",    ["78.157.42.100",  "78.157.42.101"]),
