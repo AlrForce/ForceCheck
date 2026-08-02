@@ -18,7 +18,7 @@ _W = 54
 
 _latest_version: str = ""
 
-   
+    
 def _start_version_check() -> None:
     import threading, urllib.request, re as _re
 
