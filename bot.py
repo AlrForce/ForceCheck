@@ -17,7 +17,7 @@ try:
     from . import __version__ as _VER
 except ImportError:
     _VER = "?"
-
+   
 STORE_PATH = Path.home() / ".forcecheck_bot.json"
 CHECK_HOST  = "https://check-host.net"
 _IP_RE      = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
