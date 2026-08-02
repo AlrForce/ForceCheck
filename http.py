@@ -13,7 +13,7 @@ from .colors import G, R, Y, C, B, DIM, N, loader
 from ._deps import ensure_deps
 
 CHECK_HOST = "https://check-host.net"
-
+    
 _COL_NODE = 36
 _COL_LOC  = 26
 _COL_CODE = 6
